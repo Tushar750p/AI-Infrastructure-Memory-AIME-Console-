@@ -81,7 +81,7 @@ export function transitionRemediation(
   remediationId: string,
   from: RemediationStatus,
   to: RemediationStatus,
-  details?: { verification?: string; failureReason?: string }
+  details?: { verification?: string; failureReason?: string; verifiedResourceId?: string }
 ): RemediationAction | null {
   const actions = getCollectionData('remediationActions', []);
   const index = actions.findIndex((a: RemediationAction) =>
@@ -149,6 +149,7 @@ export interface RollbackAction {
   failureReason?: string;
   evidenceEventIds: string[];
   targetSnapshotId?: string;
+  verifiedResourceId?: string;
 }
 
 function rollbackId() { return 'rollback-' + crypto.randomUUID(); }
@@ -191,7 +192,7 @@ export function transitionRollback(organizationId: string, rollbackIdValue: stri
   rollbacks[index] = { ...action, status: to,
     ...(to === 'executing' ? { executionLock: crypto.randomUUID(), executingAt: now } : {}),
     ...(to === 'verified' || to === 'failed' ? { executionLock: undefined } : {}),
-    ...(to === 'verified' ? { verifiedAt: now, verification: details?.verification } : {}),
+    ...(to === 'verified' ? { verifiedAt: now, verification: details?.verification, verifiedResourceId: details?.verifiedResourceId } : {}),
     ...(to === 'failed' ? { failedAt: now, failureReason: details?.failureReason } : {})
   };
   setCollectionData('rollbackActions', rollbacks);
