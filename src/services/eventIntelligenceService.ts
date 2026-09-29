@@ -89,7 +89,10 @@ export function correlateInfrastructureEvents(
     const group = candidates[0];
     if (!group) {
       groups.push({
-        correlationId: event.correlationId || 'corr-' + crypto.randomUUID(),
+        correlationId: event.correlationId || 'corr-' + crypto.createHash('sha256')
+          .update([organizationId, event.timestamp, event.resourceId, event.eventType].join('|'))
+          .digest('hex')
+          .slice(0, 24),
         eventIds: [event.id],
         sources: [event.source],
         resourceIds: [event.resourceId],
