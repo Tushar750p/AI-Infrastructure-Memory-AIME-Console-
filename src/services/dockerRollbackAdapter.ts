@@ -36,9 +36,36 @@ export async function validateSnapshotCompatibility(docker: Docker, snapshot: an
   const binds = Array.isArray(snapshot.binds) ? snapshot.binds : [];
   for (const bind of binds) {
     const source = String(bind).split(':')[0];
-    if (!source || !source.startsWith('/')) continue;
-    if (!fs.existsSync(source)) {
-      throw new Error(`Rollback preflight failed: bind source "${source}" is not available on the target host.`);
+    if (!source) continue;
+    if (source.startsWith('/')) {
+      if (!fs.existsSync(source)) {
+        throw new Error(`Rollback preflight failed: bind source "${source}" is not available on the target host.`);
+      }
+    } else {
+      try {
+        await docker.getVolume(source).inspect();
+      } catch {
+        throw new Error(`Rollback preflight failed: volume "${source}" is not available on the target host.`);
+      }
+    }
+  }
+
+  const portBindings = snapshot.portBindings || {};
+  const requestedPorts = Object.values(portBindings).flatMap((bindings: any) =>
+    Array.isArray(bindings) ? bindings.map((binding: any) => String(binding?.HostPort || '')).filter(Boolean) : []
+  );
+  if (requestedPorts.length) {
+    const existing = await docker.listContainers({ all: true });
+    const conflicts = new Set<string>();
+    for (const item of existing as any[]) {
+      for (const port of (item.Ports || [])) {
+        if (port.PublicPort && requestedPorts.includes(String(port.PublicPort))) {
+          conflicts.add(String(port.PublicPort));
+        }
+      }
+    }
+    if (conflicts.size) {
+      throw new Error(`Rollback preflight failed: host port "${[...conflicts].join(', ')}" is already in use.`);
     }
   }
 }
