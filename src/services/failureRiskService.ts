@@ -1,5 +1,6 @@
 import { getCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
+import { loadDurableHistory } from './durableInfrastructureHistoryService.js';
 
 export interface FailureRiskSignal {
   organizationId: string;
@@ -20,16 +21,9 @@ function level(score: number): FailureRiskSignal['level'] {
   return 'low';
 }
 
-export function calculateFailureRisk(
-  organizationId: string,
-  lookbackHours = 24
-): FailureRiskSignal[] {
-  const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
-  const events: InfrastructureEvent[] = getCollectionData('infrastructureEvents', [])
-    .filter((e: InfrastructureEvent) =>
-      e.organizationId === organizationId &&
-      new Date(e.timestamp).getTime() >= cutoff
-    );
+function calculateFailureRiskFromEvents(events: InfrastructureEvent[], organizationId: string): FailureRiskSignal[] {
+
+
 
   const byResource = new Map<string, InfrastructureEvent[]>();
   for (const event of events) {
@@ -107,4 +101,18 @@ export function calculateFailureRisk(
   }
 
   return results.sort((a, b) => b.riskScore - a.riskScore);
+}
+
+
+export async function calculateFailureRiskDurable(organizationId: string, lookbackHours = 24): Promise<FailureRiskSignal[]> {
+  const { events } = await loadDurableHistory(organizationId, 1000);
+  const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
+  return calculateFailureRiskFromEvents(events.filter((event) => event.organizationId === organizationId && new Date(event.timestamp).getTime() >= cutoff), organizationId);
+}
+
+export function calculateFailureRisk(organizationId: string, lookbackHours = 24): FailureRiskSignal[] {
+  const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
+  const events: InfrastructureEvent[] = getCollectionData('infrastructureEvents', [])
+    .filter((e: InfrastructureEvent) => e.organizationId === organizationId && new Date(e.timestamp).getTime() >= cutoff);
+  return calculateFailureRiskFromEvents(events, organizationId);
 }
