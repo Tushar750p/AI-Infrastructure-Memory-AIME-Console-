@@ -148,6 +148,11 @@ export async function loadDurableHistory(
   }
 }
 
+export async function listDurableInfrastructureEvents(organizationId: string, limit = 100): Promise<InfrastructureEvent[]> {
+  const history = await loadDurableHistory(organizationId, limit);
+  return history.events.slice(0, Math.min(Math.max(limit, 1), 1000));
+}
+
 export function durableHistoryQueueSize() {
   return { events: pendingEvents.size, snapshots: pendingSnapshots.size };
 }
