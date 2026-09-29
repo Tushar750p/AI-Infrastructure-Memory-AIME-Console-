@@ -100,6 +100,24 @@ assert.equal(retained.length, 5);
 assert.equal(getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-0'), null);
 assert.ok(getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-5'));
 
+setCollectionData('dockerRollbackCandidates', []);
+for (const eventId of ['event-a', 'event-c', 'event-b', 'event-d', 'event-e', 'event-f']) {
+  const snapshot = {
+    ...candidateBase,
+    capturedAt: '2026-01-01T00:00:00.000Z',
+    integrityHash: ''
+  };
+  snapshot.integrityHash = createHash(snapshot);
+  preserveDockerRollbackCandidate('org-tie', 'host-1', 'container-1', snapshot, eventId);
+}
+const tied = listDockerRollbackCandidates('org-tie', 'host-1', 'container-1', 100);
+assert.equal(tied.length, 5);
+assert.deepEqual(
+  tied.map((candidate: any) => candidate.candidateEventId),
+  ['event-f', 'event-e', 'event-d', 'event-c', 'event-b']
+);
+assert.equal(getDockerRollbackCandidate('org-tie', 'host-1', 'container-1', 'event-a'), null);
+
 const tampered = getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-5');
 assert.ok(tampered);
 tampered.image = 'tampered:image';
