@@ -292,8 +292,9 @@ authRouter.post('/login', async (req: Request, res: Response) => {
 
     logAuthAudit('USER_LOGIN', user.id, user.email, user.organizationId, req.ip || '127.0.0.1', 'Login successful');
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, secure: true, maxAge: 3600000 });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, maxAge: 7 * 86400000 });
+    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 3600000 });
+    res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 86400000 });
 
     res.json({
       message: 'Authentication successful',
@@ -354,11 +355,37 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
   const users = getCollectionData('users', []);
   const user = users.find((u: any) => u.id === payload.userId);
 
+  const sessions = getCollectionData('sessions', []);
+  const session = sessions.find((s: any) => s.id === payload.sessionId && s.userId === payload.userId && s.active);
+  if (!session) {
+    return res.status(401).json({ error: 'Session is inactive or no longer exists' });
+  }
+
+  const refreshTokens = getCollectionData('refreshTokens', []);
+  const storedRefresh = refreshTokens.find((r: any) =>
+    r.userId === payload.userId &&
+    r.token === refreshToken &&
+    new Date(r.expiresAt).getTime() > Date.now()
+  );
+  if (!storedRefresh) {
+    return res.status(401).json({ error: 'Refresh token has been revoked or expired' });
+  }
+
   if (!user) {
     return res.status(401).json({ error: 'User no longer exists' });
   }
 
   const { accessToken: newAccess, refreshToken: newRefresh } = generateTokens(user, payload.sessionId);
+
+  storedRefresh.revokedAt = new Date().toISOString();
+  refreshTokens.push({
+    id: `rt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: user.id,
+    token: newRefresh,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  });
+  setCollectionData('refreshTokens', refreshTokens);
 
   const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
   res.cookie('accessToken', newAccess, { ...cookieOptions, maxAge: 3600000 });
