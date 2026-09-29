@@ -30,6 +30,7 @@ export interface RemediationAction {
   evidenceEventIds: string[];
   verification?: string;
   failureReason?: string;
+  verifiedResourceId?: string;
 }
 
 function id() {
@@ -181,7 +182,7 @@ export function approveRollback(organizationId: string, rollbackIdValue: string,
   return rollbacks[index];
 }
 
-export function transitionRollback(organizationId: string, rollbackIdValue: string, from: RollbackStatus, to: RollbackStatus, details?: { verification?: string; failureReason?: string }): RollbackAction | null {
+export function transitionRollback(organizationId: string, rollbackIdValue: string, from: RollbackStatus, to: RollbackStatus, details?: { verification?: string; failureReason?: string; verifiedResourceId?: string }): RollbackAction | null {
   const rollbacks = getCollectionData('rollbackActions', []);
   const index = rollbacks.findIndex((r: RollbackAction) => r.organizationId === organizationId && r.id === rollbackIdValue);
   if (index < 0) return null;
@@ -198,6 +199,22 @@ export function transitionRollback(organizationId: string, rollbackIdValue: stri
   setCollectionData('rollbackActions', rollbacks);
   auditRollback(rollbacks[index], to, details?.verification || details?.failureReason || `Rollback transitioned from ${from} to ${to}.`);
   return rollbacks[index];
+}
+
+function auditRemediation(action: RemediationAction, status: string, details: string, actor?: string) {
+  const audit = getCollectionData('remediationAudit', []);
+  audit.unshift({
+    id: `remediation-audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    organizationId: action.organizationId,
+    remediationId: action.id,
+    resourceId: action.resourceId,
+    actionType: action.actionType,
+    status,
+    details,
+    actor: actor || action.approvedBy || action.proposedBy,
+    createdAt: new Date().toISOString()
+  });
+  setCollectionData('remediationAudit', audit.slice(0, 20000));
 }
 
 function auditRollback(action: RollbackAction, status: string, details: string, actor?: string) {
