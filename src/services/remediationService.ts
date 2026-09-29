@@ -106,7 +106,12 @@ export function transitionRemediation(
     ...(to === 'verified' || to === 'failed' ? { executionLock: undefined } : {}),
     ...(to === 'executing' ? { executingAt: now } : {}),
     ...(to === 'verified'
-      ? { executedAt: action.executedAt || now, verifiedAt: now, verification: details?.verification }
+      ? {
+          executedAt: action.executedAt || now,
+          verifiedAt: now,
+          verification: details?.verification,
+          verifiedResourceId: details?.verifiedResourceId
+        }
       : {}),
     ...(to === 'failed'
       ? { executedAt: action.executedAt || now, failedAt: now, failureReason: details?.failureReason }
