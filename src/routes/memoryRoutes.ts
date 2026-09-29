@@ -25,7 +25,7 @@ import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphServic
 import { getResourceTimeline, getResourceStateAt } from '../services/timeMachineService.js';
 import { analyzeIncident } from '../services/incidentIntelligenceService.js';
 import { calculateFailureRisk } from '../services/failureRiskService.js';
-import { proposeRemediation, approveRemediation, listRemediations } from '../services/remediationService.js';
+import { proposeRemediation, approveRemediation, listRemediations, proposeRollback, approveRollback, getRollback } from '../services/remediationService.js';
 import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 import { executeDockerRemediation } from '../services/dockerRemediationAdapter.js';
 import { executeKubernetesRemediation } from '../services/kubernetesRemediationAdapter.js';
