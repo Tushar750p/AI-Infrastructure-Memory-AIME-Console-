@@ -33,7 +33,6 @@ export async function executeKubernetesRemediation(
   const remediation = getRemediation(organizationId, remediationId);
   if (!remediation) throw new Error('Remediation not found.');
   if (remediation.status !== 'approved') throw new Error('Remediation must be approved.');
-  transitionRemediation(organizationId, remediationId, 'approved', 'executing');
   if (!ALLOWED_REMEDIATION_ACTIONS.includes(remediation.actionType as any)) {
     throw new Error('Action is not allowlisted.');
   }
@@ -46,6 +45,8 @@ export async function executeKubernetesRemediation(
       !/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(deployment)) {
     throw new Error('Kubernetes resourceId must be namespace:deployment.');
   }
+
+  transitionRemediation(organizationId, remediationId, 'approved', 'executing');
 
   for (const cluster of tenantClusters(organizationId)) {
     const config = buildKubeConfig(cluster);
