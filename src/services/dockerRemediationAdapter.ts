@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
 import fs from 'fs';
 import { getCollectionData } from '../db/firestoreDb.js';
-import { getRemediation } from './remediationService.js';
+import { getRemediation, transitionRemediation } from './remediationService.js';
 import { ALLOWED_REMEDIATION_ACTIONS } from './remediationExecutor.js';
 
 function dockerClientForHost(host: any): Docker | null {
@@ -38,6 +38,7 @@ export async function executeDockerRemediation(
   const remediation = getRemediation(organizationId, remediationId);
   if (!remediation) throw new Error('Remediation not found.');
   if (remediation.status !== 'approved') throw new Error('Remediation is not approved.');
+  transitionRemediation(organizationId, remediationId, 'approved', 'executing');
 
   if (!ALLOWED_REMEDIATION_ACTIONS.includes(remediation.actionType as any)) {
     throw new Error('Action is not allowed by remediation policy.');
@@ -48,11 +49,13 @@ export async function executeDockerRemediation(
   }
 
   if (remediation.actionType === 'acknowledge_alert') {
+    const verification = 'Alert acknowledged at policy layer; no Docker mutation performed.';
+    transitionRemediation(organizationId, remediationId, 'executing', 'verified', { verification });
     return {
       success: true,
       actionType: remediation.actionType,
       resourceId: remediation.resourceId,
-      verification: 'Alert acknowledged at policy layer; no Docker mutation performed.'
+      verification
     };
   }
 
@@ -72,11 +75,13 @@ export async function executeDockerRemediation(
 
       const verified = await container.inspect();
       if (verified.State?.Running) {
+        const verification = 'Container restart completed and Docker reports the container as running.';
+        transitionRemediation(organizationId, remediationId, 'executing', 'verified', { verification });
         return {
           success: true,
           actionType: remediation.actionType,
           resourceId: remediation.resourceId,
-          verification: 'Container restart completed and Docker reports the container as running.'
+          verification
         };
       }
     } catch {
@@ -84,5 +89,7 @@ export async function executeDockerRemediation(
     }
   }
 
-  throw new Error('Docker container could not be restarted or verified on any tenant-authorized host.');
+  const failureReason = 'Docker container could not be restarted or verified on any tenant-authorized host.';
+  transitionRemediation(organizationId, remediationId, 'executing', 'failed', { failureReason });
+  throw new Error(failureReason);
 }
