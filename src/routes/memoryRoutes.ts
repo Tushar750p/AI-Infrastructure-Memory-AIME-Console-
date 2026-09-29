@@ -26,10 +26,20 @@ import { getResourceTimeline, getResourceStateAt } from '../services/timeMachine
 import { analyzeIncident } from '../services/incidentIntelligenceService.js';
 import { calculateFailureRisk } from '../services/failureRiskService.js';
 import { proposeRemediation, approveRemediation, listRemediations } from '../services/remediationService.js';
+import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.post('/infrastructure/remediations/:id/execute', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = executeApprovedRemediation(getTenantId(req), req.params.id);
+    res.json({ success: result.success, execution: result });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 memoryRouter.get('/infrastructure/remediations', (req: AuthenticatedRequest, res: Response) => {
   try {
     res.json({ success: true, remediations: listRemediations(getTenantId(req)) });
