@@ -15,6 +15,8 @@ interface Checkpoint {
   lastStatus: 'never' | 'running' | 'success' | 'failed';
   lastEmitted: number;
   lastError?: string;
+  lastPagesFetched?: number;
+  lastTruncated?: boolean;
   staleAfterMs?: number;
 }
 
@@ -64,6 +66,8 @@ async function runOne(org: string, collector: CollectorName, fn: () => Promise<a
       lastStatus: 'success',
       lastEmitted: emitted,
       lastError: result?.reason,
+      lastPagesFetched: Number.isFinite(Number(result?.pagesFetched)) ? Number(result.pagesFetched) : undefined,
+      lastTruncated: Boolean(result?.truncated),
       staleAfterMs: INTERVAL_MS * 3
     });
   } catch (error) {
