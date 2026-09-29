@@ -312,7 +312,9 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       }
 
       // Verify MFA token or backup code
-      const isValidMfa = user.mfaSecret === mfaCode || (user.backupCodes && user.backupCodes.includes(mfaCode));
+      const isValidTotp = user.mfaSecret ? verifyTotpCode(user.mfaSecret, mfaCode) : false;
+      const isValidBackupCode = Boolean(user.backupCodes && user.backupCodes.includes(mfaCode));
+      const isValidMfa = isValidTotp || isValidBackupCode;
       if (!isValidMfa) {
         logAuthAudit('FAILED_MFA', user.id, user.email, user.organizationId, req.ip || '127.0.0.1', 'Invalid TOTP/Backup Code');
         return res.status(401).json({ error: 'Invalid Multi-Factor Authentication code.' });
