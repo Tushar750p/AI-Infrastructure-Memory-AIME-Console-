@@ -1,5 +1,6 @@
 import * as k8s from '@kubernetes/client-node';
-import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { getCollectionData } from '../db/firestoreDb.js';
+import { getDurableState, setDurableState } from './durableStateService.js';
 import { InfrastructureEvent, createInfrastructureEvent } from '../types/infrastructureEvent.js';
 import { ingestInfrastructureEvent } from './infrastructureEventService.js';
 import { decryptSecret } from './sshService.js';
@@ -244,10 +245,10 @@ async function collectClusterState(
 
   for (const [resourceType, items] of resourceSets) {
     const key = snapshotKey(organizationId, cluster.id, resourceType);
-    const previous = getCollectionData(key, {}) as Record<string, any>;
+    const previous = await getDurableState(key, {}) as Record<string, any>;
     const current = snapshotById(items);
     events.push(...diffSnapshots(organizationId, cluster, resourceType, previous, current));
-    setCollectionData(key, current);
+    await setDurableState(key, current);
   }
 
   return events;
