@@ -60,6 +60,7 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
     ? getDockerRollbackCandidate(organizationId, hostId, containerId, rollback.targetSnapshotId)
     : getDockerRollbackSnapshot(organizationId, hostId, containerId);
   if (!snapshot) throw new Error('No trusted Docker rollback snapshot exists for this tenant resource.');
+  verifyDockerRollbackSnapshot(snapshot);
 
   const host = getCollectionData('dockerHosts', []).find((h: any) => h.organizationId === organizationId && h.id === hostId);
   if (!host) throw new Error('Tenant-authorized Docker host not found.');
