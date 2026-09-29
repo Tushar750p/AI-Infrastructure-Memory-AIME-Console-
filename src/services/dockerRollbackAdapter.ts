@@ -172,12 +172,24 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
             WorkingDir: current.Config?.WorkingDir,
             ExposedPorts: current.Config?.ExposedPorts,
             Labels: current.Config?.Labels,
+            User: current.Config?.User,
+            Healthcheck: current.Config?.Healthcheck,
+            StopSignal: current.Config?.StopSignal,
+            StopTimeout: current.Config?.StopTimeout,
+            Tty: current.Config?.Tty,
+            OpenStdin: current.Config?.OpenStdin,
             HostConfig: {
               Binds: current.HostConfig?.Binds,
               PortBindings: current.HostConfig?.PortBindings,
               NetworkMode: current.HostConfig?.NetworkMode,
               RestartPolicy: current.HostConfig?.RestartPolicy,
-              Privileged: current.HostConfig?.Privileged
+              Privileged: current.HostConfig?.Privileged,
+              Devices: current.HostConfig?.Devices,
+              CapAdd: current.HostConfig?.CapAdd,
+              CapDrop: current.HostConfig?.CapDrop,
+              SecurityOpt: current.HostConfig?.SecurityOpt,
+              Init: current.HostConfig?.Init,
+              ReadonlyRootfs: current.HostConfig?.ReadonlyRootfs
             }
           } as any);
           if (wasRunning) await recovery.start();
