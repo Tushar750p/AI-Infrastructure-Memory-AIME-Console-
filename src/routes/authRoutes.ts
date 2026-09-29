@@ -374,6 +374,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     refreshTokens.push({
       id: `rt-${Date.now()}`,
       userId: user.id,
+      tokenHash: hashRefreshToken(refreshToken),
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       familyId
