@@ -6,6 +6,7 @@ import { collectAwsStateChanges } from './awsStateChangeCollector.js';
 import { collectKubernetesEvents, collectKubernetesState } from './kubernetesEventCollector.js';
 import { collectDockerEvents, collectDockerState } from './dockerEventCollector.js';
 import { collectLinuxEvents } from './linuxEventCollector.js';
+import { flushDurableInfrastructureHistory } from './durableInfrastructureHistoryService.js';
 
 type CollectorName = 'aws-cloudtrail' | 'aws-state' | 'kubernetes-events' | 'kubernetes-state' | 'docker-events' | 'docker-state' | 'linux-events';
 
@@ -113,7 +114,8 @@ export async function runInfrastructureCollectors() {
     for (const org of orgs) {
       await runCollectorsForTenant(org);
     }
-    return { skipped: false, organizations: orgs.length };
+    const durableHistory = await flushDurableInfrastructureHistory();
+    return { skipped: false, organizations: orgs.length, durableHistory };
   } finally {
     running = false;
     await releaseCollectorLock(lock);
