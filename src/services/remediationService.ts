@@ -46,6 +46,7 @@ export function proposeRemediation(input: Omit<RemediationAction, 'id' | 'status
   const actions = getCollectionData('remediationActions', []);
   actions.unshift(action);
   setCollectionData('remediationActions', actions.slice(0, 10000));
+  auditRemediation(action, 'proposed', 'Remediation proposal created.');
   return action;
 }
 
@@ -70,6 +71,7 @@ export function approveRemediation(
   };
 
   setCollectionData('remediationActions', actions);
+  auditRemediation(actions[index], 'approved', 'Remediation explicitly approved.', approvedBy);
   return actions[index];
 }
 
@@ -105,6 +107,7 @@ export function transitionRemediation(
   };
 
   setCollectionData('remediationActions', actions);
+  auditRemediation(actions[index], to, details?.verification || details?.failureReason || `Remediation transitioned from ${from} to ${to}.`);
   return actions[index];
 }
 
