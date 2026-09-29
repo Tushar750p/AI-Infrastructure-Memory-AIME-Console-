@@ -1,4 +1,4 @@
-import { analyzeIncident } from '../src/services/incidentIntelligenceService.js';
+import { analyzeIncident, analyzeIncidentDurable } from '../src/services/incidentIntelligenceService.js';
 import { getCollectionData, setCollectionData } from '../src/db/firestoreDb.js';
 import { createInfrastructureEvent } from '../src/types/infrastructureEvent.js';
 import { loadDurableEventsForWindow } from '../src/services/durableInfrastructureHistoryService.js';
@@ -41,6 +41,10 @@ async function run() {
   assert(!!intelligence, 'Incident intelligence is generated');
   assert((intelligence?.evidence.length || 0) >= 2, 'Incident includes surrounding evidence');
   assert((intelligence?.rootCauseCandidates.length || 0) >= 1, 'Root-cause candidates are evidence based');
+
+  const durableIntelligence = await analyzeIncidentDurable(org, groups[0].correlationId);
+  assert(!!durableIntelligence, 'Durable incident intelligence is generated');
+  assert((durableIntelligence?.evidence.length || 0) >= 2, 'Durable incident intelligence retains evidence');
 
   const durableWindow = await loadDurableEventsForWindow(
     org,
