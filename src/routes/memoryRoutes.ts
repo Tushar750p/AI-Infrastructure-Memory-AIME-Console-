@@ -13,8 +13,27 @@ import {
 } from '../services/memoryEngine.js';
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getTenantId, tenantRecords, findTenantRecord } from '../services/tenantAccess.js';
+import { listInfrastructureEvents, getCollectorStatus } from '../services/infrastructureEventService.js';
 
 export const memoryRouter = Router();
+
+// Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.get('/infrastructure/events', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
+    res.json({ events: listInfrastructureEvents(getTenantId(req), limit) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+memoryRouter.get('/infrastructure/collector-status', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json(getCollectorStatus(getTenantId(req)));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Initialize memory store on module load
 initializeMemoryStore().catch(err => {
