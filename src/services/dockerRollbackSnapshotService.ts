@@ -113,6 +113,24 @@ export function getLatestDockerRollbackSnapshot(organizationId: string, hostId: 
   return getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
 }
 
+export function listDockerRollbackCandidates(organizationId: string, hostId: string, containerId: string, limit = 20) {
+  const prefix = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:`;
+  const candidates: any[] = [];
+  const store = getCollectionData('__allCollections__', null);
+  if (store && typeof store === 'object') {
+    for (const [key, value] of Object.entries(store as Record<string, any>)) {
+      if (key.startsWith(prefix) && value && typeof value === 'object') candidates.push(value);
+    }
+  }
+  return candidates
+    .sort((a, b) => new Date(b.candidateCreatedAt || 0).getTime() - new Date(a.candidateCreatedAt || 0).getTime())
+    .slice(0, Math.min(Math.max(limit, 1), 100));
+}
+
+export function getDockerRollbackCandidate(organizationId: string, hostId: string, containerId: string, candidateEventId: string) {
+  return getCollectionData(`dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${candidateEventId}`, null);
+}
+
 export function getDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
   return getCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), null) || getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
 }
