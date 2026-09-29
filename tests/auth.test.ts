@@ -66,6 +66,12 @@ async function runAuthSuite() {
   assert(ROLE_PERMISSIONS['SRE'].includes('incidents:manage'), 'SRE role includes incident management');
   assert(ROLE_PERMISSIONS['Auditor'].includes('audit:read'), 'Auditor role includes audit logs access');
   assert(!ROLE_PERMISSIONS['Viewer'].includes('infra:delete'), 'Viewer role restricted from deleting infrastructure');
+  assert(!ROLE_PERMISSIONS['Viewer'].includes('infra:write'), 'Viewer role restricted from infrastructure mutations');
+  assert(!ROLE_PERMISSIONS['Developer'].includes('infra:deploy'), 'Developer role restricted from deployments');
+  assert(!ROLE_PERMISSIONS['Developer'].includes('cmd:execute'), 'Developer role restricted from command execution');
+  assert(!ROLE_PERMISSIONS['Auditor'].includes('infra:write'), 'Auditor role restricted from infrastructure mutations');
+  assert(ROLE_PERMISSIONS['DevOps Engineer'].includes('infra:deploy'), 'DevOps Engineer can perform approved deployments');
+  assert(ROLE_PERMISSIONS['Organization Admin'].includes('users:manage'), 'Organization Admin can manage users');
 
   console.log('\n----------------------------------------------------');
   console.log(`SUMMARY: ${passed} Passed | ${failed} Failed`);
