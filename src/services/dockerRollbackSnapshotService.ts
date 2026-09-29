@@ -109,6 +109,10 @@ export function preserveDockerRollbackCandidate(
   return key;
 }
 
+export function getLatestDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
+  return getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
+}
+
 export function getDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
   return getCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), null) || getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
 }
