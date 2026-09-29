@@ -36,7 +36,7 @@ async function run() {
   const groups = correlateInfrastructureEvents(org, 15);
   assert(groups.length >= 1, 'Related events form a correlation group');
 
-  const intelligence = await analyzeIncident(org, groups[0].correlationId);
+  const intelligence = analyzeIncident(org, groups[0].correlationId);
   assert(!!intelligence, 'Incident intelligence is generated');
   assert((intelligence?.evidence.length || 0) >= 2, 'Incident includes surrounding evidence');
   assert((intelligence?.rootCauseCandidates.length || 0) >= 1, 'Root-cause candidates are evidence based');
