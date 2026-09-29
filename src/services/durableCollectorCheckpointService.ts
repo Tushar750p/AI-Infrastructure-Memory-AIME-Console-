@@ -12,11 +12,11 @@ function getAdminDb(): any {
   try {
     const app = getApps()[0] || initializeApp(
       process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY
-        ? cert({
+        ? { credential: cert({
             projectId: process.env.FIREBASE_PROJECT_ID,
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
             privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-          })
+          }) }
         : { credential: applicationDefault(), projectId: process.env.FIREBASE_PROJECT_ID }
     );
     adminDb = getFirestore(app);
