@@ -17,6 +17,7 @@ import { listInfrastructureEvents, getCollectorStatus } from '../services/infras
 import { ingestAwsCloudTrailEvents } from '../services/awsCloudTrailCollector.js';
 import { collectAwsStateChanges } from '../services/awsStateChangeCollector.js';
 import { correlateInfrastructureEvents } from '../services/eventIntelligenceService.js';
+import { collectKubernetesEvents, collectKubernetesState } from '../services/kubernetesEventCollector.js';
 
 export const memoryRouter = Router();
 
@@ -60,6 +61,26 @@ memoryRouter.get('/infrastructure/correlations', (req: AuthenticatedRequest, res
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/collect/kubernetes/events', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await collectKubernetesEvents(getTenantId(req));
+    const ok = result.source === 'live';
+    res.status(ok ? 200 : 503).json({ success: ok, ...result });
+  } catch (err: any) {
+    res.status(502).json({ success: false, source: 'live', error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/collect/kubernetes/state', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await collectKubernetesState(getTenantId(req));
+    const ok = result.source === 'live';
+    res.status(ok ? 200 : 503).json({ success: ok, ...result });
+  } catch (err: any) {
+    res.status(502).json({ success: false, source: 'live', error: err.message });
   }
 });
 
