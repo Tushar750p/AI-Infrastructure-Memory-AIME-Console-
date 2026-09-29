@@ -69,9 +69,23 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+const cspReportBuckets = new Map<string, { count: number; resetAt: number }>();
+const cspReportWindowMs = 60_000;
+const cspReportLimit = 30;
+
 app.post('/api/security/csp-report', express.json({ type: ['application/csp-report', 'application/reports+json'], limit: '64kb' }), (req, res) => {
   // CSP reports are intentionally unauthenticated and side-effect free.
-  // Never echo report contents back to the caller; keep logging bounded.
+  // Keep the endpoint bounded to prevent a report flood from filling logs.
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const bucket = cspReportBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    cspReportBuckets.set(key, { count: 1, resetAt: now + cspReportWindowMs });
+  } else {
+    bucket.count += 1;
+    if (bucket.count > cspReportLimit) return res.status(429).end();
+  }
+
   const report = req.body;
   if (!report || typeof report !== 'object') {
     return res.status(204).end();
