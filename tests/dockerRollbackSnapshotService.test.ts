@@ -158,7 +158,7 @@ assert.doesNotThrow(() => verifyDockerRollbackSnapshot(migrated));
 
 const tamperedLegacy = {
   ...unsigned,
-  env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacySecret.slice(0, -1)}0`],
+  env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacySecret.slice(0, -1)}${legacySecret.endsWith('0') ? '1' : '0'}`],
   integrityHash: ''
 };
 tamperedLegacy.integrityHash = createHash(tamperedLegacy);
