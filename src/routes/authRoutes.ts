@@ -575,7 +575,7 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
   }
 
   const resets = getCollectionData('passwordResets', []);
-  const resetRecord = resets.find((r: any) => r.token === token && !r.used && new Date(r.expiresAt).getTime() > Date.now());
+  const resetRecord = resets.find((r: any) => (r.tokenHash ? r.tokenHash === hashAuthSecret(token) : r.token === token) && !r.used && new Date(r.expiresAt).getTime() > Date.now());
 
   if (!resetRecord) {
     return res.status(400).json({ error: 'Invalid or expired password reset token.' });
