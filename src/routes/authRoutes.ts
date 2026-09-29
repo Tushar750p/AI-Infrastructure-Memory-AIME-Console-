@@ -503,7 +503,9 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
 });
 
 // 5. FORGOT PASSWORD
-authRouter.post('/forgot-password', (req: Request, res: Response) => {
+authRouter.post('/forgot-password', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `password-reset:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many password reset requests. Please try again later.' });
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email address is required.' });
@@ -541,6 +543,8 @@ authRouter.post('/forgot-password', (req: Request, res: Response) => {
 
 // 6. RESET PASSWORD
 authRouter.post('/reset-password', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `password-reset-complete:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many password reset attempts. Please try again later.' });
   const { token, newPassword, confirmPassword } = req.body;
 
   if (!token || !newPassword) {
