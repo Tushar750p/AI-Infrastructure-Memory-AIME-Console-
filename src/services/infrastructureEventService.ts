@@ -2,6 +2,7 @@ import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
 import { isDuplicateEvent, rememberEventFingerprint } from './eventIntelligenceService.js';
 import { ingestEventIntoKnowledgeGraph } from './knowledgeGraphService.js';
+import { recordTimeMachineSnapshot } from './timeMachineService.js';
 
 const COLLECTION = 'infrastructureEvents';
 
@@ -14,6 +15,7 @@ export function ingestInfrastructureEvent(event: InfrastructureEvent): Infrastru
   if (duplicate) return duplicate;
   events.unshift(event);
   ingestEventIntoKnowledgeGraph(event);
+  recordTimeMachineSnapshot(event);
   setCollectionData(COLLECTION, events.slice(0, 10000));
   return event;
 }
