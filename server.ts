@@ -14,6 +14,7 @@ import { awsRouter } from './src/routes/awsRoutes.js';
 import { awsAccountRouter } from './src/routes/awsAccountRoutes.js';
 import { memoryRouter } from './src/routes/memoryRoutes.js';
 import { storeMemoryItem } from './src/services/memoryEngine.js';
+import { startInfrastructureCollectorScheduler } from './src/services/infrastructureCollectorScheduler.js';
 
 dotenv.config();
 
@@ -2794,6 +2795,7 @@ async function start() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`AI Infrastructure Memory server listening on port ${PORT}`);
+    startInfrastructureCollectorScheduler();
   });
 
   // Bootstrap Cloud Firestore Database with seeds in background without blocking server startup
