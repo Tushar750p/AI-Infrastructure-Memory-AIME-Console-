@@ -134,12 +134,24 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
           WorkingDir: snapshot.workingDir,
           ExposedPorts: snapshot.exposedPorts,
           Labels: snapshot.labels,
+          User: snapshot.user,
+          Healthcheck: snapshot.healthcheck,
+          StopSignal: snapshot.stopSignal,
+          StopTimeout: snapshot.stopTimeout,
+          Tty: snapshot.tty,
+          OpenStdin: snapshot.openStdin,
           HostConfig: {
             Binds: snapshot.binds,
             PortBindings: snapshot.portBindings,
             NetworkMode: snapshot.networkMode,
             RestartPolicy: snapshot.restartPolicy,
-            Privileged: snapshot.privileged
+            Privileged: snapshot.privileged,
+            Devices: snapshot.devices,
+            CapAdd: snapshot.capabilities?.capAdd || [],
+            CapDrop: snapshot.capabilities?.capDrop || [],
+            SecurityOpt: snapshot.securityOpt || [],
+            Init: snapshot.init,
+            ReadonlyRootfs: snapshot.readOnlyRootfs
           }
         } as any);
         if (snapshot.running) await recreated.start();
