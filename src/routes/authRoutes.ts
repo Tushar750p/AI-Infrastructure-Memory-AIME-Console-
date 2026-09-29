@@ -171,14 +171,14 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     // Log Audit
     logAuthAudit('USER_REGISTER', userId, email, orgId, req.ip || '127.0.0.1', `Created organization ${organizationName}`);
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, secure: true, maxAge: 3600000 });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, maxAge: 7 * 86400000 });
+    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 3600000 });
+    res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 86400000 });
 
     res.status(201).json({
       message: 'Registration successful. Account and organization created.',
       accessToken,
       refreshToken,
-      emailVerificationToken,
       user: {
         id: newUser.id,
         email: newUser.email,
@@ -360,8 +360,9 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
 
   const { accessToken: newAccess, refreshToken: newRefresh } = generateTokens(user, payload.sessionId);
 
-  res.cookie('accessToken', newAccess, { httpOnly: true, secure: true, maxAge: 3600000 });
-  res.cookie('refreshToken', newRefresh, { httpOnly: true, secure: true, maxAge: 7 * 86400000 });
+  const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
+  res.cookie('accessToken', newAccess, { ...cookieOptions, maxAge: 3600000 });
+  res.cookie('refreshToken', newRefresh, { ...cookieOptions, maxAge: 7 * 86400000 });
 
   res.json({
     accessToken: newAccess,
@@ -399,7 +400,6 @@ authRouter.post('/forgot-password', (req: Request, res: Response) => {
 
     return res.json({
       message: 'If an account exists with this email, password reset instructions have been generated.',
-      resetToken, // Returned for dev testing & direct verification
       expiresAt: resetExpiry
     });
   }
