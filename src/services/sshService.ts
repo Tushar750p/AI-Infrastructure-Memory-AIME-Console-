@@ -109,9 +109,29 @@ export async function getSshSession(serverId: string): Promise<Client | null> {
     throw new Error(`Server with ID or IP '${serverId}' not found in database.`);
   }
 
-  const decryptedPass = server.password ? decryptSecret(server.password) : undefined;
-  const decryptedKey = server.privateKey ? decryptSecret(server.privateKey) : undefined;
-  const decryptedPassphrase = server.passphrase ? decryptSecret(server.passphrase) : undefined;
+  const decryptAndMigrate = (value?: string) => {
+    if (!value) return undefined;
+    const decrypted = decryptSecret(value);
+    if (value.split(':')[0] !== 'v1') {
+      return { plaintext: decrypted, migrated: encryptSecret(decrypted) };
+    }
+    return { plaintext: decrypted, migrated: value };
+  };
+
+  const passSecret = decryptAndMigrate(server.password);
+  const keySecret = decryptAndMigrate(server.privateKey);
+  const passphraseSecret = decryptAndMigrate(server.passphrase);
+
+  if (passSecret?.migrated !== server.password) server.password = passSecret?.migrated;
+  if (keySecret?.migrated !== server.privateKey) server.privateKey = keySecret?.migrated;
+  if (passphraseSecret?.migrated !== server.passphrase) server.passphrase = passphraseSecret?.migrated;
+  if (passSecret?.migrated !== server.password || keySecret?.migrated !== server.privateKey || passphraseSecret?.migrated !== server.passphrase) {
+    setCollectionData('servers', servers);
+  }
+
+  const decryptedPass = passSecret?.plaintext;
+  const decryptedKey = keySecret?.plaintext;
+  const decryptedPassphrase = passphraseSecret?.plaintext;
 
   const connectConfig: ConnectConfig = {
     host: server.ip,
