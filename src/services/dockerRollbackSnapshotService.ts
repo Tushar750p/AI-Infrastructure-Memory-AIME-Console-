@@ -35,7 +35,14 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
     env: inspected.Config?.Env || [],
     cmd: inspected.Config?.Cmd || [],
     entrypoint: inspected.Config?.Entrypoint || [],
-    workingDir: inspected.Config?.WorkingDir || ''
+    workingDir: inspected.Config?.WorkingDir || '',
+    exposedPorts: inspected.Config?.ExposedPorts || {},
+    labels: inspected.Config?.Labels || {},
+    binds: inspected.HostConfig?.Binds || [],
+    portBindings: inspected.HostConfig?.PortBindings || {},
+    networkMode: inspected.HostConfig?.NetworkMode || '',
+    restartPolicy: inspected.HostConfig?.RestartPolicy || {},
+    privileged: Boolean(inspected.HostConfig?.Privileged)
   };
 
   setCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), snapshot);
