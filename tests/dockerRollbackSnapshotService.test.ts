@@ -138,5 +138,33 @@ assert.ok(migrated);
 assert.match(migrated.env[0], /^DB_PASSWORD=__AIME_ENCRYPTED__v1:/);
 assert.doesNotThrow(() => verifyDockerRollbackSnapshot(migrated));
 
+const tamperedLegacy = {
+  ...unsigned,
+  env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacySecret.slice(0, -1)}0`],
+  integrityHash: ''
+};
+tamperedLegacy.integrityHash = createHash(tamperedLegacy);
+setCollectionData(
+  dockerRollbackSnapshotKey('org-migration-tampered', 'host-1', 'container-1'),
+  tamperedLegacy
+);
+assert.throws(
+  () => migrateLatestDockerRollbackSnapshot('org-migration-tampered', 'host-1', 'container-1'),
+  /Legacy encrypted secret authentication failed/
+);
+
+const plaintextSnapshot = {
+  ...unsigned,
+  env: ['DB_PASSWORD=plaintext-secret'],
+  integrityHash: ''
+};
+plaintextSnapshot.integrityHash = createHash(plaintextSnapshot);
+setCollectionData(
+  dockerRollbackSnapshotKey('org-migration-plaintext', 'host-1', 'container-1'),
+  plaintextSnapshot
+);
+const plaintextResult = migrateLatestDockerRollbackSnapshot('org-migration-plaintext', 'host-1', 'container-1');
+assert.equal(plaintextResult.env[0], 'DB_PASSWORD=plaintext-secret');
+
 console.log('Docker rollback snapshot integrity, tenant isolation, retention, and migration tests passed.');
 
