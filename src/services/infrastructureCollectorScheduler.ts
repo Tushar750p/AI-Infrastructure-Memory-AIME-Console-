@@ -33,6 +33,7 @@ function organizations(): string[] {
     getCollectionData('organizations', [])
       .map((o: any) => o.id)
       .filter(Boolean)
+      .map(String)
   )];
 }
 
