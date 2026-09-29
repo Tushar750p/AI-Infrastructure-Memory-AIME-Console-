@@ -177,6 +177,7 @@ export function verifyRefreshToken(token: string) {
 
 // Helper to write audit logs
 export function logAuthAudit(action: string, userId: string, email: string, orgId: string, ip: string, details?: string) {
+  if (!orgId) throw new Error('organizationId is required for audit logging');
   const auditLogs = getCollectionData('auditLogs', []);
   const log = {
     id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
