@@ -577,6 +577,12 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
   const salt = await bcrypt.genSalt(10);
   user.passwordHash = await bcrypt.hash(newPassword, salt);
   user.updatedAt = new Date().toISOString();
+  const sessions = getCollectionData('sessions', []);
+  sessions.forEach((session: any) => { if (session.userId === user.id) session.active = false; });
+  setCollectionData('sessions', sessions);
+  const refreshTokens = getCollectionData('refreshTokens', []);
+  refreshTokens.forEach((record: any) => { if (record.userId === user.id) record.revokedAt = record.revokedAt || new Date().toISOString(); });
+  setCollectionData('refreshTokens', refreshTokens);
   setCollectionData('users', users);
 
   resetRecord.used = true;
