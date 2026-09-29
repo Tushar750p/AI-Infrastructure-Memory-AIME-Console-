@@ -14,6 +14,7 @@ import {
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getTenantId, tenantRecords, findTenantRecord } from '../services/tenantAccess.js';
 import { listInfrastructureEvents, getCollectorStatus } from '../services/infrastructureEventService.js';
+import { listDurableInfrastructureEvents } from '../services/durableInfrastructureHistoryService.js';
 import { ingestAwsCloudTrailEvents } from '../services/awsCloudTrailCollector.js';
 import { collectAwsStateChanges } from '../services/awsStateChangeCollector.js';
 import { correlateInfrastructureEvents } from '../services/eventIntelligenceService.js';
@@ -22,7 +23,7 @@ import { collectDockerEvents, collectDockerState } from '../services/dockerEvent
 import { collectLinuxEvents } from '../services/linuxEventCollector.js';
 import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
-import { getResourceTimeline, getResourceStateAt } from '../services/timeMachineService.js';
+import { getResourceTimeline, getResourceStateAt, getDurableResourceTimeline, getDurableResourceStateAt } from '../services/timeMachineService.js';
 import { analyzeIncident } from '../services/incidentIntelligenceService.js';
 import { calculateFailureRisk } from '../services/failureRiskService.js';
 import { proposeRemediation, approveRemediation, listRemediations, proposeRollback, approveRollback, getRollback } from '../services/remediationService.js';
@@ -270,7 +271,7 @@ memoryRouter.get('/infrastructure/incidents/:correlationId/intelligence', (req: 
   }
 });
 
-memoryRouter.get('/infrastructure/time-machine/:resourceId', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/time-machine/:resourceId', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const start = req.query.start as string | undefined;
     const end = req.query.end as string | undefined;
@@ -279,14 +280,14 @@ memoryRouter.get('/infrastructure/time-machine/:resourceId', (req: Authenticated
     res.json({
       success: true,
       resourceId: req.params.resourceId,
-      timeline: getResourceTimeline(getTenantId(req), req.params.resourceId, { start, end, source, limit })
+      timeline: await getDurableResourceTimeline(getTenantId(req), req.params.resourceId, { start, end, source, limit })
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-memoryRouter.get('/infrastructure/time-machine/:resourceId/state', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/time-machine/:resourceId/state', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const at = String(req.query.at || '');
     if (!at || Number.isNaN(new Date(at).getTime())) {
@@ -296,7 +297,7 @@ memoryRouter.get('/infrastructure/time-machine/:resourceId/state', (req: Authent
       success: true,
       resourceId: req.params.resourceId,
       at,
-      state: getResourceStateAt(getTenantId(req), req.params.resourceId, at)
+      state: await getDurableResourceStateAt(getTenantId(req), req.params.resourceId, at)
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -327,10 +328,10 @@ memoryRouter.get('/infrastructure/graph/neighbors/:nodeId', (req: AuthenticatedR
   }
 });
 
-memoryRouter.get('/infrastructure/events', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/events', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
-    res.json({ events: listInfrastructureEvents(getTenantId(req), limit) });
+    res.json({ events: await listDurableInfrastructureEvents(getTenantId(req), limit) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
