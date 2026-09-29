@@ -15,6 +15,7 @@ import { getCollectionData } from '../db/firestoreDb.js';
 import { getTenantId, tenantRecords, findTenantRecord } from '../services/tenantAccess.js';
 import { listInfrastructureEvents, getCollectorStatus } from '../services/infrastructureEventService.js';
 import { ingestAwsCloudTrailEvents } from '../services/awsCloudTrailCollector.js';
+import { correlateInfrastructureEvents } from '../services/eventIntelligenceService.js';
 
 export const memoryRouter = Router();
 
@@ -43,6 +44,18 @@ memoryRouter.post('/infrastructure/collect/aws/cloudtrail', async (req: Authenti
       source: result.source,
       ingested: result.ingested,
       reason: result.reason || null
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+memoryRouter.get('/infrastructure/correlations', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const windowMinutes = Math.min(Math.max(parseInt(String(req.query.windowMinutes || '15'), 10) || 15, 1), 120);
+    res.json({
+      windowMinutes,
+      groups: correlateInfrastructureEvents(getTenantId(req), windowMinutes)
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
