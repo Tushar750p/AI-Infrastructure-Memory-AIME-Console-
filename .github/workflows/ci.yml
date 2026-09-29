@@ -35,3 +35,5 @@ jobs:
 
       - name: Test suite
         run: npm test
+
+# CI typecheck follows the repository branch state.
