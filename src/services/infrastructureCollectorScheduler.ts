@@ -109,7 +109,8 @@ export async function runInfrastructureCollectors() {
   if (!lock) return { skipped: true, reason: 'Collector cycle lease is already held by another instance.' };
 
   running = true;
-  const renewalIntervalMs = Math.max(Math.floor((Date.now() + 1) * 0 + Number(process.env.AIME_COLLECTOR_LOCK_TTL_MS || 120000) / 3), 10000);
+  const lockTtlMs = Math.max(Number(process.env.AIME_COLLECTOR_LOCK_TTL_MS || 120000), 30000);
+  const renewalIntervalMs = Math.max(Math.floor(lockTtlMs / 3), 10000);
   const renewalTimer = setInterval(() => {
     void renewCollectorLock(lock, Number(process.env.AIME_COLLECTOR_LOCK_TTL_MS || 120000)).then((renewed) => {
       if (!renewed) console.warn('[AIME Collector] Collector lock renewal failed; lease may expire before cycle completion.');
