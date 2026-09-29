@@ -59,6 +59,7 @@ app.use((req, res, next) => {
         "connect-src 'self'",
         "worker-src 'self' blob:",
         "manifest-src 'self'",
+        "report-uri /api/security/csp-report",
       ].join('; ')
     );
   }
@@ -67,6 +68,20 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+
+app.post('/api/security/csp-report', express.json({ type: ['application/csp-report', 'application/reports+json'], limit: '64kb' }), (req, res) => {
+  // CSP reports are intentionally unauthenticated and side-effect free.
+  // Never echo report contents back to the caller; keep logging bounded.
+  const report = req.body;
+  if (!report || typeof report !== 'object') {
+    return res.status(204).end();
+  }
+
+  const serialized = JSON.stringify(report);
+  const boundedReport = serialized.length > 4000 ? serialized.slice(0, 4000) + '…' : serialized;
+  console.warn('[CSP Report]', boundedReport);
+  res.status(204).end();
+});
 
 const csrfSafeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 const configuredOrigins = (process.env.AIME_ALLOWED_ORIGINS || process.env.APP_URL || '')
