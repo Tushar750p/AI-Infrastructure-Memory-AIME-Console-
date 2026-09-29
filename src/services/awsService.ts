@@ -168,7 +168,7 @@ export async function getEc2InstancesWithSource(): Promise<AwsCollectorResult<an
       });
 
       if (realInstances.length > 0) {
-        return realInstances;
+        return { data: realInstances, source: 'live' };
       }
     } catch (err) {
       console.warn('[AWS Integration] Real EC2 DescribeInstances error, falling back:', (err as Error).message);
