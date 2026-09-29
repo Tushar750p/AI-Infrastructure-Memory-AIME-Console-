@@ -15,6 +15,7 @@ import { getCollectionData } from '../db/firestoreDb.js';
 import { getTenantId, tenantRecords, findTenantRecord } from '../services/tenantAccess.js';
 import { listInfrastructureEvents, getCollectorStatus } from '../services/infrastructureEventService.js';
 import { ingestAwsCloudTrailEvents } from '../services/awsCloudTrailCollector.js';
+import { collectAwsStateChanges } from '../services/awsStateChangeCollector.js';
 import { correlateInfrastructureEvents } from '../services/eventIntelligenceService.js';
 
 export const memoryRouter = Router();
@@ -59,6 +60,16 @@ memoryRouter.get('/infrastructure/correlations', (req: AuthenticatedRequest, res
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/collect/aws/state', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await collectAwsStateChanges(getTenantId(req));
+    const ok = result.source === 'live';
+    res.status(ok ? 200 : 503).json({ success: ok, ...result });
+  } catch (err: any) {
+    res.status(502).json({ success: false, source: 'live', error: err.message });
   }
 });
 
