@@ -11,6 +11,7 @@ import { serverRouter } from './src/routes/serverRoutes.js';
 import { dockerRouter } from './src/routes/dockerRoutes.js';
 import { k8sRouter } from './src/routes/k8sRoutes.js';
 import { awsRouter } from './src/routes/awsRoutes.js';
+import { awsAccountRouter } from './src/routes/awsAccountRoutes.js';
 import { memoryRouter } from './src/routes/memoryRoutes.js';
 import { storeMemoryItem } from './src/services/memoryEngine.js';
 
@@ -38,6 +39,7 @@ app.use('/api', requireAuth);
 app.use('/api', serverRouter);
 app.use('/api', dockerRouter);
 app.use('/api', k8sRouter);
+app.use('/api', awsAccountRouter);
 app.use('/api', awsRouter);
 app.use('/api', memoryRouter);
 
