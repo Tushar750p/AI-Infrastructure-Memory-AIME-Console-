@@ -20,6 +20,7 @@ import { correlateInfrastructureEvents } from '../services/eventIntelligenceServ
 import { collectKubernetesEvents, collectKubernetesState } from '../services/kubernetesEventCollector.js';
 import { collectDockerEvents, collectDockerState } from '../services/dockerEventCollector.js';
 import { collectLinuxEvents } from '../services/linuxEventCollector.js';
+import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 
 export const memoryRouter = Router();
 
@@ -123,6 +124,16 @@ memoryRouter.post('/infrastructure/collect/aws/state', async (req: Authenticated
     res.status(ok ? 200 : 503).json({ success: ok, ...result });
   } catch (err: any) {
     res.status(502).json({ success: false, source: 'live', error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/memory-sync', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const windowMinutes = Math.min(Math.max(parseInt(String(req.body?.windowMinutes || '15'), 10) || 15, 1), 120);
+    const result = await syncCorrelatedEventsToMemory(getTenantId(req), windowMinutes);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
