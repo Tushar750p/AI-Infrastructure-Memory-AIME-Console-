@@ -1,7 +1,8 @@
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EKSClient, ListClustersCommand, DescribeClusterCommand } from '@aws-sdk/client-eks';
-import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { getCollectionData } from '../db/firestoreDb.js';
+import { getDurableState, setDurableState } from './durableStateService.js';
 import { decryptSecret } from './sshService.js';
 import { createInfrastructureEvent } from '../types/infrastructureEvent.js';
 import { ingestInfrastructureEvent } from './infrastructureEventService.js';
@@ -101,9 +102,9 @@ export async function collectAwsStateChanges(organizationId: string) {
   let emitted = 0;
   for (const [kind, snapshot] of Object.entries(result.snapshots)) {
     const key = snapshotKey(organizationId, kind);
-    const previous = getCollectionData(key, []);
+    const previous = await getDurableState(key, []);
     emitted += emitChanges(organizationId, kind.toUpperCase(), previous, snapshot as any[]);
-    setCollectionData(key, snapshot);
+    await setDurableState(key, snapshot);
   }
   return { source: 'live' as const, emitted };
 }
