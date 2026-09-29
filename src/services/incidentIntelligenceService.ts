@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
-import { correlateInfrastructureEvents, CorrelatedEventGroup } from './eventIntelligenceService.js';
+import { correlateInfrastructureEvents, correlateDurableInfrastructureEvents, CorrelatedEventGroup } from './eventIntelligenceService.js';
 import { getResourceTimeline } from './timeMachineService.js';
 import { buildKnowledgeGraph } from './knowledgeGraphService.js';
 
@@ -135,3 +135,62 @@ export function analyzeIncident(
   };
 }
 
+
+
+export async function analyzeIncidentDurable(
+  organizationId: string,
+  correlationId: string
+): Promise<IncidentIntelligence | null> {
+  const groups = await correlateDurableInfrastructureEvents(organizationId, 60, 1000);
+  const group = groups.find(g => g.correlationId === correlationId);
+  if (!group) return null;
+  const { loadDurableHistory } = await import('./durableInfrastructureHistoryService.js');
+  const history = await loadDurableHistory(organizationId, 1000);
+  const events = history.events.filter(e => e.organizationId === organizationId);
+  return analyzeIncidentFromEvents(organizationId, group, events);
+}
+
+function analyzeIncidentFromEvents(
+  organizationId: string,
+  group: CorrelatedEventGroup,
+  events: InfrastructureEvent[]
+): IncidentIntelligence {
+  const start = new Date(group.firstSeen).getTime();
+  const end = new Date(group.lastSeen).getTime();
+  const surrounding = events.filter(e => {
+    const ts = new Date(e.timestamp).getTime();
+    return ts >= start - 15 * 60 * 1000 && ts <= end + 15 * 60 * 1000;
+  }).sort((a,b)=>new Date(a.timestamp).getTime()-new Date(b.timestamp).getTime());
+
+  const graph = buildKnowledgeGraph(organizationId);
+  const evidence: IncidentEvidence[] = surrounding.map(event => {
+    const ts = new Date(event.timestamp).getTime();
+    return {
+      eventId:event.id,timestamp:event.timestamp,source:event.source,resourceId:event.resourceId,
+      eventType:event.eventType,severity:event.severity,
+      relation:ts<start?'preceding':ts>end?'following':'same-window',
+      evidenceScore:scoreEvent(event,start,group.resourceIds)
+    };
+  });
+
+  const rootCauseCandidates = surrounding.filter(event =>
+    ['configuration.changed','resource.updated','resource.state_changed','deployment.failed','command.executed','metric.threshold'].includes(event.eventType)
+  ).map(event => ({
+    resourceId:event.resourceId,source:event.source,eventType:event.eventType,
+    reason:event.eventType==='metric.threshold'?'Resource threshold was observed near the incident window.':
+      event.eventType==='configuration.changed'?'A configuration change preceded or overlapped the incident.':
+      event.eventType==='deployment.failed'?'A failed deployment occurred near the incident window.':
+      'A state or operational change was recorded near the incident window.',
+    evidenceScore:scoreEvent(event,start,group.resourceIds)
+  })).sort((a,b)=>b.evidenceScore-a.evidenceScore).slice(0,10);
+
+  const graphEvidence=graph.edges.filter(edge=>edge.organizationId===organizationId&&group.resourceIds.some(id=>edge.from.includes(id)||edge.to.includes(id)));
+  if(graphEvidence.length){
+    for(const candidate of rootCauseCandidates){
+      if(graphEvidence.some(edge=>edge.from.includes(candidate.resourceId)||edge.to.includes(candidate.resourceId)))
+        candidate.evidenceScore=Math.min(.99,candidate.evidenceScore+.1);
+    }
+    rootCauseCandidates.sort((a,b)=>b.evidenceScore-a.evidenceScore);
+  }
+  return {correlationId:group.correlationId,severity:group.severity,confidence:group.confidence,firstSeen:group.firstSeen,lastSeen:group.lastSeen,resources:group.resourceIds,sources:group.sources,evidence,rootCauseCandidates};
+}
