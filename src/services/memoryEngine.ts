@@ -712,7 +712,8 @@ export async function getRootCauseAnalysis(queryOrId: string, organizationId: st
   previousSuccessfulResolution: string;
   preventativeMeasures: string[];
 }> {
-  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES), organizationId);
+  // RCA must never mix demo/seed memories into a tenant's live evidence.
+  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, []), organizationId);
 
   // Check if query is an exact memory ID
   let targetMem = memories.find(m => m.id === queryOrId);
