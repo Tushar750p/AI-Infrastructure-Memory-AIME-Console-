@@ -3,6 +3,7 @@ import fs from 'fs';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent, createInfrastructureEvent } from '../types/infrastructureEvent.js';
 import { ingestInfrastructureEvent } from './infrastructureEventService.js';
+import { captureDockerRollbackSnapshot, getLatestDockerRollbackSnapshot, preserveDockerRollbackCandidate } from './dockerRollbackSnapshotService.js';
 
 export interface DockerCollectorResult {
   source: 'live' | 'seed';
@@ -164,6 +165,14 @@ export async function collectDockerState(organizationId: string): Promise<Docker
       const previous = getCollectionData(snapshotKey(organizationId, host), {}) as Record<string, any>;
 
       for (const [id, after] of Object.entries(current)) {
+        const latestSnapshot = getLatestDockerRollbackSnapshot(organizationId, host.id, id);
+        if (!latestSnapshot) {
+          try {
+            await captureDockerRollbackSnapshot(organizationId, host.id, id);
+          } catch (error) {
+            console.warn(`[Docker Collector] Initial rollback snapshot failed for ${id}:`, (error as Error).message);
+          }
+        }
         const before = previous[id];
         if (!before) {
           events.push(createInfrastructureEvent({
@@ -181,7 +190,7 @@ export async function collectDockerState(organizationId: string): Promise<Docker
             isLive: true
           }));
         } else if (JSON.stringify(before) !== JSON.stringify(after)) {
-          events.push(createInfrastructureEvent({
+          const changeEvent = createInfrastructureEvent({
             organizationId,
             source: 'docker',
             resourceType: 'container',
@@ -195,7 +204,20 @@ export async function collectDockerState(organizationId: string): Promise<Docker
             after,
             tags: ['docker', host.name || host.id, 'container'],
             isLive: true
-          }));
+          });
+          events.push(changeEvent);
+          if (latestSnapshot) {
+            try {
+              preserveDockerRollbackCandidate(organizationId, host.id, id, latestSnapshot, changeEvent.id);
+            } catch (error) {
+              console.warn(`[Docker Collector] Rollback candidate preservation failed for ${id}:`, (error as Error).message);
+            }
+          }
+          try {
+            await captureDockerRollbackSnapshot(organizationId, host.id, id);
+          } catch (error) {
+            console.warn(`[Docker Collector] Post-change rollback snapshot failed for ${id}:`, (error as Error).message);
+          }
         }
       }
 
