@@ -81,5 +81,25 @@ assert.equal(listDockerRollbackCandidates('org-b', 'host-1', 'container-1').leng
 assert.match(keyA, /org-a/);
 assert.match(keyB, /org-b/);
 
-console.log('Docker rollback snapshot integrity and tenant-isolation tests passed.');
+process.env.AIME_DOCKER_ROLLBACK_RETENTION = '5';
+setCollectionData('dockerRollbackCandidates', []);
+
+for (let i = 0; i < 6; i++) {
+  const snapshot = {
+    ...candidateBase,
+    capturedAt: new Date(Date.now() + i).toISOString(),
+    integrityHash: ''
+  };
+  snapshot.integrityHash = createHash(snapshot);
+  preserveDockerRollbackCandidate('org-retention', 'host-1', 'container-1', snapshot, `event-${i}`);
+}
+
+const retained = listDockerRollbackCandidates('org-retention', 'host-1', 'container-1', 100);
+assert.equal(retained.length, 5);
+assert.equal(getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-0'), null);
+assert.ok(getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-5'));
+
+delete process.env.AIME_DOCKER_ROLLBACK_RETENTION;
+
+console.log('Docker rollback snapshot integrity, tenant isolation, and retention tests passed.');
 
