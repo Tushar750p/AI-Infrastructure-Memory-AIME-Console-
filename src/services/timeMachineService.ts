@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
-import { queueTimeMachineSnapshot } from './durableInfrastructureHistoryService.js';
+import { queueTimeMachineSnapshot, loadDurableHistory } from './durableInfrastructureHistoryService.js';
 
 export interface TimeMachineSnapshot {
   id: string;
@@ -115,4 +115,61 @@ export function getResourceStateAt(
   }
 
   return points.length ? points[points.length - 1] : null;
+}
+
+
+export async function getDurableResourceTimeline(
+  organizationId: string,
+  resourceId: string,
+  options: { start?: string; end?: string; source?: string; limit?: number } = {}
+): Promise<TimeMachinePoint[]> {
+  const start = options.start ? new Date(options.start).getTime() : Number.NEGATIVE_INFINITY;
+  const end = options.end ? new Date(options.end).getTime() : Number.POSITIVE_INFINITY;
+  const limit = Math.min(options.limit || 200, 1000);
+  const { events } = await loadDurableHistory(organizationId, 1000);
+
+  return events
+    .filter((event: InfrastructureEvent) =>
+      event.organizationId === organizationId &&
+      event.resourceId === resourceId &&
+      (!options.source || event.source === options.source)
+    )
+    .filter((event: InfrastructureEvent) => {
+      const ts = new Date(event.timestamp).getTime();
+      return ts >= start && ts <= end;
+    })
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .slice(-limit)
+    .map(event => ({
+      timestamp: event.timestamp,
+      state: event.after !== undefined ? event.after : event.rawEvent,
+      eventId: event.id,
+      eventType: event.eventType,
+      severity: event.severity
+    }));
+}
+
+export async function getDurableResourceStateAt(
+  organizationId: string,
+  resourceId: string,
+  at: string
+): Promise<TimeMachinePoint | null> {
+  const atMs = new Date(at).getTime();
+  const { snapshots } = await loadDurableHistory(organizationId, 1000);
+  const snapshot = snapshots
+    .filter((item: TimeMachineSnapshot) =>
+      item.organizationId === organizationId &&
+      item.resourceId === resourceId &&
+      new Date(item.timestamp).getTime() <= atMs
+    )
+    .sort((a: TimeMachineSnapshot, b: TimeMachineSnapshot) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
+
+  if (!snapshot) return null;
+  return {
+    timestamp: snapshot.timestamp,
+    state: snapshot.state,
+    eventId: snapshot.eventId
+  };
 }
