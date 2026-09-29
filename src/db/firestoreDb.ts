@@ -1,12 +1,7 @@
 import { applicationDefault, cert, getApps as getAdminApps, initializeApp as initializeAdminApp } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, deleteDoc, setLogLevel } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
-
-// Suppress noisy internal gRPC/write stream logs from Firestore SDK
-setLogLevel('silent');
 
 let adminDb: any = null;
 let adminInitialized = false;
@@ -43,8 +38,8 @@ try {
   console.warn('[Database] Could not read firebase-applet-config.json:', e);
 }
 
-// Initialize Firebase App
-const app = initializeApp({
+// Firebase client SDK is intentionally not initialized here. All Firestore access is server-side via Admin SDK.
+const app = {
   apiKey: firebaseConfig.apiKey || 'placeholder-key',
   authDomain: firebaseConfig.authDomain || 'placeholder.firebaseapp.com',
   projectId: firebaseConfig.projectId || 'placeholder-project',
