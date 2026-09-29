@@ -1,0 +1,274 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "User account in the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "email"]
+    },
+    "organizations": {
+      "title": "Organization",
+      "description": "Enterprise Organization unit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "plan": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "projects": {
+      "title": "Project",
+      "description": "Infrastructure Project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "servers": {
+      "title": "Server",
+      "description": "Monitored infrastructure server",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ip": { "type": "string" },
+        "os": { "type": "string" },
+        "status": { "type": "string" },
+        "uptime": { "type": "string" },
+        "cpu": { "type": "number" },
+        "ram": { "type": "number" },
+        "disk": { "type": "number" },
+        "provider": { "type": "string" },
+        "region": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ip"]
+    },
+    "sshSessions": {
+      "title": "SSHSession",
+      "description": "SSH connection log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "serverId": { "type": "string" },
+        "user": { "type": "string" },
+        "status": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "incidents": {
+      "title": "Incident",
+      "description": "SRE Incident record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "severity": { "type": "string" },
+        "status": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "alerts": {
+      "title": "Alert",
+      "description": "System health alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "severity": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "commandHistory": {
+      "title": "CommandHistory",
+      "description": "Executed shell command history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "command": { "type": "string" },
+        "serverId": { "type": "string" },
+        "user": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "dockerResources": {
+      "title": "DockerResource",
+      "description": "Docker container / image resource",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "kubernetesResources": {
+      "title": "KubernetesResource",
+      "description": "K8s pod/deployment resource",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "status": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "awsResources": {
+      "title": "AWSResource",
+      "description": "AWS cloud resource",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "name": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "reports": {
+      "title": "Report",
+      "description": "Generated infrastructure report",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "subscriptions": {
+      "title": "Subscription",
+      "description": "Billing subscription",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "plan": { "type": "string" },
+        "status": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "invoices": {
+      "title": "Invoice",
+      "description": "Billing invoice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "payments": {
+      "title": "Payment",
+      "description": "Payment record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "auditLogs": {
+      "title": "AuditLog",
+      "description": "System audit log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "user": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "notifications": {
+      "title": "Notification",
+      "description": "User/org notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "message": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "events": {
+      "title": "Event",
+      "description": "Infrastructure memory event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "serverId": { "type": "string" },
+        "type": { "type": "string" },
+        "message": { "type": "string" },
+        "user": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": { "$ref": "#/entities/users" }, "description": "User profiles" },
+    "/organizations/{orgId}": { "schema": { "$ref": "#/entities/organizations" }, "description": "Organizations" },
+    "/projects/{projectId}": { "schema": { "$ref": "#/entities/projects" }, "description": "Projects" },
+    "/servers/{serverId}": { "schema": { "$ref": "#/entities/servers" }, "description": "Servers" },
+    "/sshSessions/{sessionId}": { "schema": { "$ref": "#/entities/sshSessions" }, "description": "SSH Sessions" },
+    "/incidents/{incidentId}": { "schema": { "$ref": "#/entities/incidents" }, "description": "Incidents" },
+    "/alerts/{alertId}": { "schema": { "$ref": "#/entities/alerts" }, "description": "Alerts" },
+    "/commandHistory/{commandId}": { "schema": { "$ref": "#/entities/commandHistory" }, "description": "Command history" },
+    "/dockerResources/{resourceId}": { "schema": { "$ref": "#/entities/dockerResources" }, "description": "Docker resources" },
+    "/kubernetesResources/{k8sId}": { "schema": { "$ref": "#/entities/kubernetesResources" }, "description": "Kubernetes resources" },
+    "/awsResources/{awsId}": { "schema": { "$ref": "#/entities/awsResources" }, "description": "AWS resources" },
+    "/reports/{reportId}": { "schema": { "$ref": "#/entities/reports" }, "description": "Reports" },
+    "/subscriptions/{subId}": { "schema": { "$ref": "#/entities/subscriptions" }, "description": "Subscriptions" },
+    "/invoices/{invoiceId}": { "schema": { "$ref": "#/entities/invoices" }, "description": "Invoices" },
+    "/payments/{paymentId}": { "schema": { "$ref": "#/entities/payments" }, "description": "Payments" },
+    "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/auditLogs" }, "description": "Audit logs" },
+    "/notifications/{notificationId}": { "schema": { "$ref": "#/entities/notifications" }, "description": "Notifications" },
+    "/events/{eventId}": { "schema": { "$ref": "#/entities/events" }, "description": "Memory events" }
+  }
+}

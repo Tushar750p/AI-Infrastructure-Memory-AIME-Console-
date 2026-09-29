@@ -1,0 +1,62 @@
+[
+  {
+    "id": "c-01",
+    "name": "nginx-ingress",
+    "image": "nginx:alpine",
+    "status": "running",
+    "restarts": 0,
+    "created": "2026-07-06T15:00:00Z",
+    "ports": "80:80, 443:443",
+    "serverId": "srv-02",
+    "cpu": 5.5,
+    "ram": 11
+  },
+  {
+    "id": "c-02",
+    "name": "redis-cache",
+    "image": "redis:7.0-alpine",
+    "status": "restarting",
+    "restarts": 15,
+    "created": "2026-07-06T15:10:00Z",
+    "ports": "6379:6379",
+    "serverId": "srv-02",
+    "cpu": 8.5,
+    "ram": 902
+  },
+  {
+    "id": "c-03",
+    "name": "node-api-server",
+    "image": "node:18-slim",
+    "status": "running",
+    "restarts": 2,
+    "created": "2026-07-06T15:20:00Z",
+    "ports": "8080:8080",
+    "serverId": "srv-02",
+    "cpu": 7.5,
+    "ram": 160
+  },
+  {
+    "id": "c-04",
+    "name": "postgres-replica",
+    "image": "postgres:15",
+    "status": "running",
+    "restarts": 0,
+    "created": "2026-07-06T15:30:00Z",
+    "ports": "5432:5432",
+    "serverId": "srv-02",
+    "cpu": 19.5,
+    "ram": 303
+  },
+  {
+    "id": "c-05",
+    "name": "prometheus-collector",
+    "image": "prom/prometheus:latest",
+    "status": "exited",
+    "restarts": 5,
+    "created": "2026-07-08T09:00:00Z",
+    "ports": "9090:9090",
+    "serverId": "srv-02",
+    "cpu": 0,
+    "ram": 0
+  }
+]

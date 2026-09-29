@@ -1,0 +1,80 @@
+[
+  {
+    "id": "aud-01",
+    "user": "sysadmin_clara",
+    "role": "Lead SRE Engineer",
+    "timestamp": "2026-07-20T12:37:06.296Z",
+    "action": "Approve Action - Recover Docker Container",
+    "result": "Successfully executed automated systemctl reboot on container 'nginx-ingress' and expanded virtual memory allocation limits.",
+    "auditEntry": "Operator sysadmin_clara approved recovery script AIME-REC-102. Container nginx-ingress successfully restarted.",
+    "ip": "192.168.1.14",
+    "severity": "INFO",
+    "category": "INFRA",
+    "integrityHash": "a1b2c3d4e5f6071829304152637485960a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d"
+  },
+  {
+    "id": "aud-02",
+    "user": "sysadmin_clara",
+    "role": "Lead SRE Engineer",
+    "timestamp": "2026-07-20T12:27:06.296Z",
+    "action": "Approve Action - Rescale K8s Deployment",
+    "result": "Replicas for kibana-dashboard increased from 1 to 2; node affinity constraints updated to shift pods to healthy node-01.",
+    "auditEntry": "Horizontal pod scaling successfully applied to logging namespace core.",
+    "ip": "192.168.1.14",
+    "severity": "INFO",
+    "category": "INFRA",
+    "integrityHash": "f1e2d3c4b5a6071829304152637485960a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1e"
+  },
+  {
+    "id": "aud-03",
+    "user": "sre_sarah",
+    "role": "Senior SRE Engineer",
+    "timestamp": "2026-07-20T11:57:06.296Z",
+    "action": "Operator login authenticated",
+    "result": "SRE operator sre_sarah logged in successfully via Google SSO badge.",
+    "auditEntry": "Operator login authenticated successfully via Google Workspace SSO integration.",
+    "ip": "103.45.21.99",
+    "severity": "INFO",
+    "category": "AUTH",
+    "integrityHash": "b2c3d4e5f6a7071829304152637485960a7b8c9d0e1f2a3b4c5d6e7f8a9b0c2f"
+  },
+  {
+    "id": "aud-04",
+    "user": "system",
+    "role": "System Process",
+    "timestamp": "2026-07-20T10:42:06.296Z",
+    "action": "Blocked Prompt Injection Attempt",
+    "result": "WAF AI Guardrail intercepted input with score 0.98. Filtered and quarantined request.",
+    "auditEntry": "Blocked prompt injection attack: 'Ignore prior guidelines...'. Suspicious query neutralized.",
+    "ip": "198.51.100.42",
+    "severity": "CRITICAL",
+    "category": "AI",
+    "integrityHash": "c3d4e5f6a7b8071829304152637485960a7b8c9d0e1f2a3b4c5d6e7f8a9b0c3a"
+  },
+  {
+    "id": "aud-05",
+    "user": "tushar_patil",
+    "role": "Senior Database Administrator",
+    "timestamp": "2026-07-20T08:42:06.296Z",
+    "action": "Database expansion applied",
+    "result": "Terraform update executed successfully. Expanded Postgres DB partition schema and allocated backup bucket.",
+    "auditEntry": "Database storage modification Terraform Apply triggered.",
+    "ip": "103.45.21.99",
+    "severity": "WARNING",
+    "category": "DATA",
+    "integrityHash": "d4e5f6a7b8c9071829304152637485960a7b8c9d0e1f2a3b4c5d6e7f8a9b0c4b"
+  },
+  {
+    "id": "aud-06",
+    "user": "system",
+    "role": "System Process",
+    "timestamp": "2026-07-20T06:42:06.296Z",
+    "action": "API Key rotation executed",
+    "result": "Rotated primary OAuth and Gemini client credentials. Invalidated expired tokens.",
+    "auditEntry": "API Key rotation executed for Gemini upstream services.",
+    "ip": "127.0.0.1",
+    "severity": "INFO",
+    "category": "API",
+    "integrityHash": "e5f6a7b8c9d0071829304152637485960a7b8c9d0e1f2a3b4c5d6e7f8a9b0c5c"
+  }
+]

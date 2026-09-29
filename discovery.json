@@ -1,0 +1,492 @@
+[
+  {
+    "id": "aws-ec2-01",
+    "name": "srv-nginx-prod",
+    "type": "EC2 Instance",
+    "status": "active",
+    "category": "aws",
+    "details": {
+      "Instance ID": "i-09f12a3bc",
+      "Instance Type": "t3.medium",
+      "Private IP": "10.0.1.12",
+      "Public IP": "34.201.44.89",
+      "VPC ID": "vpc-01a2b3c4",
+      "IAM Profile": "role-ec2-web-server",
+      "Security Groups": [
+        "sg-web-production"
+      ],
+      "EBS Volumes": [
+        "vol-09ea123f"
+      ],
+      "Uptime": "14 days",
+      "Region": "us-east-1"
+    }
+  },
+  {
+    "id": "aws-rds-01",
+    "name": "db-postgres-prod-primary",
+    "type": "RDS Database",
+    "status": "warning",
+    "category": "aws",
+    "details": {
+      "DB Instance ID": "db-postgres-prod-primary",
+      "Engine": "PostgreSQL 15.4",
+      "DB Instance Class": "db.r6g.xlarge",
+      "Endpoint": "db-postgres-prod.aime.internal:5432",
+      "Allocated Storage": "500 GB (GP3)",
+      "Multi-AZ": true,
+      "Storage Usage": "92% (Expanding)",
+      "Connections": "142 active",
+      "Status": "Active (Storage expansion complete)"
+    }
+  },
+  {
+    "id": "aws-redis-01",
+    "name": "cache-redis-prod",
+    "type": "Redis Cluster",
+    "status": "active",
+    "category": "aws",
+    "details": {
+      "Cluster ID": "cache-redis-prod",
+      "Engine": "Redis 7.0",
+      "Node Type": "cache.t4g.medium",
+      "Endpoint": "cache-redis.aime.internal:6379",
+      "Memory Limit": "3.1 GB",
+      "Memory Usage": "68%",
+      "Evictions": "0"
+    }
+  },
+  {
+    "id": "aws-s3-01",
+    "name": "aime-sre-audit-logs",
+    "type": "S3 Bucket",
+    "status": "synced",
+    "category": "aws",
+    "details": {
+      "Bucket Name": "aime-sre-audit-logs",
+      "Versioning": "Enabled",
+      "Storage Size": "2.1 TB",
+      "Objects Count": "45,212",
+      "Encryption": "AES-256 (sse-s3)"
+    }
+  },
+  {
+    "id": "aws-iam-01",
+    "name": "role-eks-cluster-execution",
+    "type": "IAM Role",
+    "status": "drifted",
+    "category": "aws",
+    "details": {
+      "Role ARN": "arn:aws:iam::755409278011:role/eks-cluster-execution",
+      "Trusted Entities": "eks.amazonaws.com",
+      "Attached Policies": [
+        "AmazonEKSClusterPolicy",
+        "AmazonEKSVPCResourceController",
+        "AmazonS3FullAccessToDelete [DRIFTED]"
+      ]
+    }
+  },
+  {
+    "id": "aws-vpc-01",
+    "name": "Primary Corporate VPC",
+    "type": "VPC",
+    "status": "synced",
+    "category": "aws",
+    "details": {
+      "VPC ID": "vpc-01a2b3c4",
+      "IPv4 CIDR": "10.0.0.0/16",
+      "Subnets": "6 Subnets (3 Public, 3 Private)",
+      "NAT Gateway": "nat-03aa99"
+    }
+  },
+  {
+    "id": "azure-vm-01",
+    "name": "vm-billing-service",
+    "type": "Azure VM (Virtual Machine)",
+    "status": "active",
+    "category": "azure",
+    "details": {
+      "VM Name": "vm-billing-service",
+      "Size": "Standard_D2s_v5",
+      "OS": "Ubuntu 22.04 LTS",
+      "Private IP": "10.2.1.4",
+      "Resource Group": "aime-prod-rg",
+      "Region": "East US"
+    }
+  },
+  {
+    "id": "azure-sql-01",
+    "name": "sql-payments-prod",
+    "type": "Azure SQL Database",
+    "status": "synced",
+    "category": "azure",
+    "details": {
+      "Server": "payments-sql-server",
+      "Pricing Tier": "Standard S3: 100 DTUs",
+      "Active Connections": "38",
+      "Transparent Data Encryption": "Enabled"
+    }
+  },
+  {
+    "id": "azure-blob-01",
+    "name": "aimeprodstorage",
+    "type": "Azure Blob Storage",
+    "status": "synced",
+    "category": "azure",
+    "details": {
+      "Account Name": "aimeprodstorage",
+      "Performance": "Standard",
+      "Replication": "RA-GRS",
+      "Container Count": "12",
+      "Storage Used": "4.2 TB"
+    }
+  },
+  {
+    "id": "gcp-gce-01",
+    "name": "gce-analytics-worker",
+    "type": "GCP Compute Engine",
+    "status": "active",
+    "category": "gcp",
+    "details": {
+      "Instance": "gce-analytics-worker",
+      "Machine Type": "e2-medium",
+      "Zone": "us-central1-a",
+      "Internal IP": "10.128.0.25",
+      "Service Account": "analytics-sa@aime-sre-prod.iam.gserviceaccount.com"
+    }
+  },
+  {
+    "id": "gcp-sql-01",
+    "name": "gcp-sql-replica",
+    "type": "GCP Cloud SQL PostgreSQL",
+    "status": "synced",
+    "category": "gcp",
+    "details": {
+      "Instance ID": "gcp-sql-replica",
+      "Database Version": "PostgreSQL 14",
+      "Tier": "db-custom-2-7680",
+      "Storage Limit": "200 GB",
+      "Replication Status": "Streaming (Uptodate)"
+    }
+  },
+  {
+    "id": "gcp-gcs-01",
+    "name": "aime-user-assets-prod",
+    "type": "GCP Cloud Storage Bucket",
+    "status": "synced",
+    "category": "gcp",
+    "details": {
+      "Bucket Name": "aime-user-assets-prod",
+      "Location": "US-EAST1",
+      "Storage Class": "Standard",
+      "Uniform Bucket Access": "Enabled"
+    }
+  },
+  {
+    "id": "k8s-node-01",
+    "name": "ip-10-0-12-8.ec2.internal",
+    "type": "Kubernetes Node",
+    "status": "active",
+    "category": "k8s",
+    "details": {
+      "Node Name": "ip-10-0-12-8.ec2.internal",
+      "Role": "Worker",
+      "Kernel Version": "5.15.0-aws",
+      "OS Image": "Bottlerocket OS",
+      "Allocatable CPU": "4 vCPUs",
+      "Allocatable RAM": "16 GB"
+    }
+  },
+  {
+    "id": "k8s-ns-01",
+    "name": "production-core",
+    "type": "Kubernetes Namespace",
+    "status": "synced",
+    "category": "k8s",
+    "details": {
+      "Namespace": "production-core",
+      "Active Pods": "32",
+      "Resource Quota": "CPU: 24 Cores, Memory: 96 GB",
+      "Network Policies": "Enabled (Strict egress)"
+    }
+  },
+  {
+    "id": "k8s-dep-01",
+    "name": "aime-api-gateway",
+    "type": "Kubernetes Deployment",
+    "status": "active",
+    "category": "k8s",
+    "details": {
+      "Deployment": "aime-api-gateway",
+      "Namespace": "production-core",
+      "Replicas": "3/3 Available",
+      "Strategy": "RollingUpdate (25% max unavailable)",
+      "Selector": "app=aime-api-gateway"
+    }
+  },
+  {
+    "id": "k8s-pod-01",
+    "name": "aime-api-gateway-7b94d8d9b-x82hf",
+    "type": "Kubernetes Pod",
+    "status": "warning",
+    "category": "k8s",
+    "details": {
+      "Pod Name": "aime-api-gateway-7b94d8d9b-x82hf",
+      "Namespace": "production-core",
+      "Node": "ip-10-0-12-8.ec2.internal",
+      "IP": "10.0.12.84",
+      "Restarts": 1,
+      "Liveness Probe": "HTTP /healthz port 8080",
+      "Status": "CrashLoopBackOff [DEGRADED]",
+      "Resource Usage": "CPU: 300m [HIGH], RAM: 512Mi"
+    }
+  },
+  {
+    "id": "k8s-pv-01",
+    "name": "pvc-8cf1a2f0-912a",
+    "type": "Kubernetes Persistent Volume",
+    "status": "synced",
+    "category": "k8s",
+    "details": {
+      "Volume Name": "pvc-8cf1a2f0-912a",
+      "Capacity": "100 GiB",
+      "Access Modes": "ReadWriteOnce",
+      "Reclaim Policy": "Retain",
+      "Storage Class": "gp3-csi"
+    }
+  },
+  {
+    "id": "k8s-svc-01",
+    "name": "aime-gateway-service",
+    "type": "Kubernetes Service",
+    "status": "synced",
+    "category": "k8s",
+    "details": {
+      "Service Name": "aime-gateway-service",
+      "Type": "LoadBalancer",
+      "Cluster IP": "172.20.144.12",
+      "External IP": "ae348f912.us-east-1.elb.amazonaws.com",
+      "Ports": "80:31244/TCP, 443:31245/TCP"
+    }
+  },
+  {
+    "id": "dock-cont-01",
+    "name": "nginx-ingress",
+    "type": "Docker Container",
+    "status": "warning",
+    "category": "docker",
+    "details": {
+      "Container ID": "92a83f124be3",
+      "Image": "nginx:alpine-3.18",
+      "Ports": "0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp",
+      "Uptime": "10 hours",
+      "Memory Limit": "1024 MB",
+      "CPU Reservation": "0.5 Cores",
+      "CPU Core Usage": "0.9%",
+      "RAM Usage": "20 MB",
+      "Status": "Exited / Restarting [CRITICAL]"
+    }
+  },
+  {
+    "id": "linux-srv-01",
+    "name": "srv-nginx-prod",
+    "type": "Linux Server SSH",
+    "status": "active",
+    "category": "linux",
+    "details": {
+      "Hostname": "srv-nginx-prod",
+      "IP Address": "10.0.1.12",
+      "SSH Port": "22",
+      "OS Version": "Ubuntu 22.04.2 LTS (Jammy Jellyfish)",
+      "Kernel": "Linux 5.15.0-76-generic",
+      "Uptime": "14 days 4 hours"
+    }
+  },
+  {
+    "id": "tf-resource-01",
+    "name": "aws_security_group.sg_web",
+    "type": "Terraform Resource",
+    "status": "drifted",
+    "category": "terraform",
+    "details": {
+      "Resource Key": "aws_security_group.sg_web",
+      "Module": "module.vpc.security_groups",
+      "Sync Status": "Drifted (Port 8080 open manually)",
+      "Last Plan Time": "2026-07-20 10:14 UTC"
+    }
+  },
+  {
+    "id": "github-repo-01",
+    "name": "aime-sre-engine",
+    "type": "GitHub Repository",
+    "status": "synced",
+    "category": "github_gitlab",
+    "details": {
+      "Repo Name": "aime-org/aime-sre-engine",
+      "Default Branch": "main",
+      "Collaborators": "14 SREs",
+      "Recent Workflows": "Deploy baseline (Succeeded)",
+      "Branch Protection": "Required linear history, 2 SRE reviews"
+    }
+  },
+  {
+    "id": "gitlab-project-01",
+    "name": "analytics-ingestion",
+    "type": "GitLab Project",
+    "status": "failed",
+    "category": "github_gitlab",
+    "details": {
+      "Project Path": "aime-group/analytics-ingestion",
+      "Active Pipeline": "Failed on job 'security-scan'",
+      "Runners": "3 Shared Kubernetes Runners",
+      "Last Commit": "bdf234f1 (Sarina Lin)"
+    }
+  },
+  {
+    "id": "k8s-pod-new-420",
+    "name": "auth-service-replica-420",
+    "type": "Pod",
+    "status": "active",
+    "category": "k8s",
+    "details": {
+      "Namespace": "core",
+      "Status": "Running",
+      "Node": "k8s-node-01",
+      "IP": "10.244.0.99",
+      "Restarts": 0,
+      "Age": "1m",
+      "Resource Usage": "CPU: 45m, RAM: 96Mi"
+    }
+  },
+  {
+    "id": "k8s-pod-new-991",
+    "name": "auth-service-replica-991",
+    "type": "Pod",
+    "status": "active",
+    "category": "k8s",
+    "details": {
+      "Namespace": "core",
+      "Status": "Running",
+      "Node": "k8s-node-01",
+      "IP": "10.244.0.88",
+      "Restarts": 0,
+      "Age": "1m",
+      "Resource Usage": "CPU: 45m, RAM: 96Mi"
+    }
+  },
+  {
+    "id": "aws-eks-01",
+    "name": "aime-production-eks-cluster",
+    "type": "AWS EKS Cluster",
+    "status": "active",
+    "category": "aws",
+    "details": {
+      "Cluster Name": "aime-production-eks-cluster",
+      "Version": "1.28.2",
+      "Endpoint": "https://D2419F231.gr7.us-east-1.eks.amazonaws.com",
+      "Active Nodes": "6 worker nodes",
+      "Security Groups": ["sg-eks-cluster-0a1"],
+      "VPC ID": "vpc-01a2b3c4"
+    }
+  },
+  {
+    "id": "aws-ecs-01",
+    "name": "aime-backend-ecs-service",
+    "type": "AWS ECS Service",
+    "status": "active",
+    "category": "aws",
+    "details": {
+      "Cluster": "aime-production-ecs",
+      "Service Name": "aime-backend-ecs-service",
+      "Task Definition": "aime-task-def-backend:4",
+      "Desired Tasks": "4",
+      "Running Tasks": "4",
+      "Launch Type": "FARGATE",
+      "Load Balancer": "arn:aws:elasticloadbalancing:us-east-1:755409278011:loadbalancer/app/aime-lb"
+    }
+  },
+  {
+    "id": "oracle-vm-01",
+    "name": "oci-edge-proxy-01",
+    "type": "Oracle Cloud VM",
+    "status": "active",
+    "category": "oracle",
+    "details": {
+      "Instance Name": "oci-edge-proxy-01",
+      "Shape": "VM.Standard.A1.Flex (4 OCPU, 24 GB RAM)",
+      "Compartment": "aime_production",
+      "Private IP": "10.4.0.12",
+      "Public IP": "129.146.22.41",
+      "Fault Domain": "FAULT-DOMAIN-1"
+    }
+  },
+  {
+    "id": "do-droplet-01",
+    "name": "do-api-caching-nyc3",
+    "type": "DigitalOcean Droplet",
+    "status": "active",
+    "category": "digitalocean",
+    "details": {
+      "Droplet Name": "do-api-caching-nyc3",
+      "Size": "s-4vcpu-8gb",
+      "IP Address": "159.203.14.88",
+      "Region": "nyc3",
+      "Tags": ["aime-sre", "cache-node"],
+      "Volume ID": "vol-nyc3-01"
+    }
+  },
+  {
+    "id": "vmware-vm-01",
+    "name": "esxi-onprem-hypervisor-01",
+    "type": "VMware ESXi Host",
+    "status": "synced",
+    "category": "vmware",
+    "details": {
+      "Host Address": "esxi-01.aime.internal",
+      "vSphere Version": "ESXi 8.0 Update 1",
+      "Total Cores": "64 Cores",
+      "Total Memory": "256 GB RAM",
+      "Connected VMs": "18 Active VMs",
+      "Storage Pool": "vsan-production-01"
+    }
+  },
+  {
+    "id": "jira-hook-01",
+    "name": "aime-sre-jira-sync-gateway",
+    "type": "Jira Service Desk Hook",
+    "status": "synced",
+    "category": "jira",
+    "details": {
+      "Webhook Target": "https://aime-sre.atlassian.net/rest/api/2/issue",
+      "Trigger Events": "On incident creation, SLA escalation, On-call reassignment",
+      "Active Projects": "SRE (Site Reliability Engineering)",
+      "Linked Components": ["Core API", "Database Primary", "Nginx Ingress Proxy"]
+    }
+  },
+  {
+    "id": "slack-hook-01",
+    "name": "slack-sre-alerts-channel",
+    "type": "Slack Alert Hook",
+    "status": "synced",
+    "category": "slack_teams",
+    "details": {
+      "Webhook URL": "https://hooks.slack.example.com/services/T0000/B0000/XXXXXX",
+      "Target Channel": "#sre-live-alarms",
+      "Notification Format": "Block Kit (Interactive Rollback Approved)",
+      "Integration Status": "Connected and healthy"
+    }
+  },
+  {
+    "id": "teams-hook-01",
+    "name": "ms-teams-ops-alerts",
+    "type": "Microsoft Teams Webhook",
+    "status": "synced",
+    "category": "slack_teams",
+    "details": {
+      "Webhook Target": "https://aime.webhook.office.com/webhookb2/241af...",
+      "Target Channel": "SRE DevOps Channel",
+      "Sync Health": "Excellent",
+      "SLA Dispatch": "Instant alerts on Critical exceptions"
+    }
+  }
+]

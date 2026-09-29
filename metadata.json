@@ -1,0 +1,8 @@
+{
+  "name": "AI Infrastructure Memory",
+  "description": "An AI-powered SaaS platform that remembers Linux server history, Docker containers, Kubernetes clusters, and incidents, offering log analysis and historical Q&A.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "channels": {
+    "android": true,
+    "ios": true,
+    "inApp": true,
+    "email": true,
+    "telegram": false,
+    "slack": true,
+    "teams": false,
+    "discord": true,
+    "sms": false,
+    "whatsapp": false
+  },
+  "quietHoursEnabled": false,
+  "quietHoursStart": "22:00",
+  "quietHoursEnd": "08:00",
+  "alertFrequency": "Instant",
+  "severityThreshold": "Low",
+  "teamNotifications": "sre-alerts@aime-enterprise.io"
+}

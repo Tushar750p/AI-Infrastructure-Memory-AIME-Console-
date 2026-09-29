@@ -1,0 +1,161 @@
+[
+  {
+    "id": "alt-01",
+    "title": "PostgreSQL Production Deadlock Alert",
+    "severity": "Critical",
+    "category": "PostgreSQL/RDS Failure",
+    "resourceName": "aws-rds-01 (srv-db-primary)",
+    "environment": "Production",
+    "timestamp": "2026-07-20T08:34:49.079Z",
+    "rootCause": "Lock contention on table 'orders_v2' between PID 4122 (low-priority bulk updates) and PID 4155 (real-time checkout transactions).",
+    "aiAnalysis": "A transaction deadlock is holding a shared write lock, causing database connection exhaustion. System latency has spiked from 45ms to 840ms. If unresolved, this will trigger upstream gateway timeouts.",
+    "recommendedAction": "Terminate the low-priority blocking PID 4155 and force-evict stale transactions.",
+    "status": "active",
+    "riskLevel": "CRITICAL - High Risk of Service Outage",
+    "impact": "1,200ms increase in API Gateway checkout latency, 18 active database sessions waiting on locks.",
+    "estimatedResolutionTime": "4 minutes",
+    "previousSimilarIncident": "alt-09 (Postgres Deadlock on 2026-06-12, resolved by sysadmin_clara in 5m)",
+    "commands": "SELECT pg_terminate_backend(4155); SELECT pg_cancel_backend(4122);",
+    "assignee": "sysadmin_clara",
+    "timeline": [
+      { "time": "08:30:00 UTC", "event": "Slight latency increase in Checkout API (+120ms)" },
+      { "time": "08:32:15 UTC", "event": "RDS Connection pool utilization hits 98% limits" },
+      { "time": "08:33:40 UTC", "event": "Transaction deadlock detected between PIDs 4122 and 4155" },
+      { "time": "08:34:49 UTC", "event": "Auto-remediation system prompts for human approval" }
+    ],
+    "comments": [
+      { "id": "c1", "user": "sre_sarah", "role": "Senior DevOps", "timestamp": "2026-07-20T08:36:12Z", "text": "Investigating RDS logs. Confirmed bulk updates from batch job are locking the orders_v2 table. Approved automated rollback is safe." }
+    ]
+  },
+  {
+    "id": "alt-02",
+    "title": "Terraform State Out-of-Sync Drift",
+    "severity": "High",
+    "category": "Terraform Drift Detected",
+    "resourceName": "tf-state-01 (srv-db-primary)",
+    "environment": "Production",
+    "timestamp": "2026-07-20T10:34:49.079Z",
+    "rootCause": "Port 8080 was opened manually from source 0.0.0.0/0 on AWS Security Group sg-web-production, bypassing Terraform CI/CD pipeline.",
+    "aiAnalysis": "Manual security group modification detected during auto-scheduled drift scanning. Opening arbitrary staging ports to public routing exposes internal ingress controllers to SSH/HTTP port sniffing.",
+    "recommendedAction": "Trigger an automated Terraform apply sequence to reconcile and heal drift back to baseline state.",
+    "status": "active",
+    "riskLevel": "HIGH - Moderate Security Vulnerability",
+    "impact": "Unsanctioned inbound port 8080 open on public security group; compliance status: FAILED.",
+    "estimatedResolutionTime": "2 minutes",
+    "previousSimilarIncident": "alt-14 (Drift on sg-web-staging on 2026-07-01, resolved by automated reconcile)",
+    "commands": "terraform plan -detailed-exitcode; terraform apply -auto-approve -target=aws_security_group.sg_web;",
+    "assignee": "sre_sarah",
+    "timeline": [
+      { "time": "10:15:00 UTC", "event": "Manual security group modification made by external IAM user" },
+      { "time": "10:30:00 UTC", "event": "AIME auto-scheduled cron drift scan begins" },
+      { "time": "10:34:49 UTC", "event": "Drift identified: security group contains unsanctioned rule. Alert raised." }
+    ],
+    "comments": []
+  },
+  {
+    "id": "alt-03",
+    "title": "Docker Container nginx-ingress Terminated",
+    "severity": "Critical",
+    "category": "Docker Container Stopped",
+    "resourceName": "dock-cont-01 (srv-docker-host)",
+    "environment": "Production",
+    "timestamp": "2026-07-20T12:24:49.079Z",
+    "rootCause": "Process exited unexpectedly with exit code 137 (OOM - Out of Memory).",
+    "aiAnalysis": "Docker daemon terminated nginx-ingress due to severe memory boundary starvation. High load from search crawlers caused worker processes to exceed the 512MB hard limit.",
+    "recommendedAction": "Restart the container, increase memory limits temporarily to 1GB, and enable worker count auto-throttling.",
+    "status": "active",
+    "riskLevel": "CRITICAL - High Outage Risk for Ingress Gateway",
+    "impact": "100% of public traffic routed through srv-nginx-prod is failing with connection refused.",
+    "estimatedResolutionTime": "1 minute",
+    "previousSimilarIncident": "alt-22 (Ingress OOM on 2026-05-18, resolved by memory bump to 768MB)",
+    "commands": "docker restart nginx-ingress; docker update --memory 1g nginx-ingress;",
+    "assignee": "on_call_steve",
+    "timeline": [
+      { "time": "12:18:00 UTC", "event": "Search indexing crawler starts hammering /search route" },
+      { "time": "12:22:10 UTC", "event": "Memory utilization on nginx-ingress hits 99.8% (511.2 MB)" },
+      { "time": "12:24:00 UTC", "event": "OOM killer terminates nginx-ingress process (exit code 137)" },
+      { "time": "12:24:49 UTC", "event": "Critical system down alert triggered by ping checks" }
+    ],
+    "comments": [
+      { "id": "c2", "user": "sysadmin_clara", "role": "Lead SRE Engineer", "timestamp": "2026-07-20T12:26:00Z", "text": "This is high priority. Steve, please approve the automatic remediation to restart and bump limits immediately." }
+    ]
+  },
+  {
+    "id": "alt-04",
+    "title": "SSL Certificate Expiring Soon",
+    "severity": "Medium",
+    "category": "SSL Certificate Expiring",
+    "resourceName": "srv-nginx-prod",
+    "environment": "Production",
+    "timestamp": "2026-07-20T00:34:49.079Z",
+    "rootCause": "Let's Encrypt automated cron job failed to renew because DNS verification failed.",
+    "aiAnalysis": "SSL certificate for 'aime.internal.domain' expires in 14 days. The ACME renewal challenge failed due to a misconfigured TXT record on Route 53.",
+    "recommendedAction": "Trigger manual DNS validation challenge or select Approve Action to provision a fallback certificate via AWS Certificate Manager.",
+    "status": "active",
+    "riskLevel": "MEDIUM - Certificate Expiry Warning",
+    "impact": "Browsers will display insecure warnings to all external clients if not renewed in 14 days.",
+    "estimatedResolutionTime": "10 minutes",
+    "previousSimilarIncident": "None within last 180 days",
+    "commands": "certbot renew --dns-route53; aws acm request-certificate --domain-name aime.internal.domain;",
+    "assignee": "",
+    "timeline": [
+      { "time": "00:00:00 UTC", "event": "Daily automated ACME challenge triggered" },
+      { "time": "00:05:30 UTC", "event": "TXT record check on Route 53 times out" },
+      { "time": "00:34:49 UTC", "event": "ACME challenge failed. System warns SRE team of 14-day expiry window." }
+    ],
+    "comments": []
+  },
+  {
+    "id": "alt-05",
+    "title": "High CPU Usage on Web Load Balancer",
+    "severity": "Medium",
+    "category": "High CPU Usage",
+    "resourceName": "srv-nginx-prod",
+    "environment": "Production",
+    "timestamp": "2026-07-20T11:34:49.079Z",
+    "rootCause": "Spike in ingress web traffic (TCP handshake attempts up 350%).",
+    "aiAnalysis": "Average CPU usage exceeded 85% for 15 minutes. Heavy cryptographic load for SSL handshakes is congesting core threads.",
+    "recommendedAction": "Spin up an auto-scaled replica server in us-east-1b.",
+    "status": "acknowledged",
+    "riskLevel": "MEDIUM - Slight Performance Latency Risk",
+    "impact": "Web frontend response latency has ticked up from 18ms to 65ms under high concurrency.",
+    "estimatedResolutionTime": "5 minutes",
+    "previousSimilarIncident": "alt-08 (Traffic Spike on 2026-06-30, resolved by auto-scaling replica)",
+    "commands": "aws autoscaling set-desired-capacity --auto-scaling-group-name asg-web --desired-capacity 3;",
+    "assignee": "sysadmin_clara",
+    "timeline": [
+      { "time": "11:15:00 UTC", "event": "Concurrently active sockets increase from 1,200 to 4,500" },
+      { "time": "11:25:00 UTC", "event": "CPU Core 0/1 core utilization sustains at 94.2%" },
+      { "time": "11:34:49 UTC", "event": "Alert generated. Acknowledged by SRE Lead." }
+    ],
+    "comments": []
+  },
+  {
+    "id": "alt-06",
+    "title": "Kubernetes Pod CrashLoopBackOff",
+    "severity": "High",
+    "category": "Kubernetes Pod CrashLoopBackOff",
+    "resourceName": "kibana-dashboard",
+    "environment": "Production",
+    "timestamp": "2026-07-19T12:34:49.079Z",
+    "rootCause": "Elasticsearch connection handshake timed out, throwing unhandled connection exception.",
+    "aiAnalysis": "Liveness probe failed for Kibana replica. The Kibana application container cannot ping the central logging indices on port 9200, leading to process exit and subsequent CrashLoopBackOff restarts.",
+    "recommendedAction": "Acknowledge Alert or approve container restart with delayed liveness probe checking (initialDelaySeconds: 60).",
+    "status": "resolved",
+    "riskLevel": "HIGH - Dev/Logging Console Unavailable",
+    "impact": "Operators cannot view structured logs inside Kibana interface during the crash window.",
+    "estimatedResolutionTime": "3 minutes",
+    "previousSimilarIncident": "alt-04 (Kibana connection loss on 2026-05-11)",
+    "commands": "kubectl rollout restart deployment kibana-dashboard -n production-core;",
+    "assignee": "sre_sarah",
+    "timeline": [
+      { "time": "12:30:00 UTC", "event": "Elasticsearch service restarts due to snapshot cleanups" },
+      { "time": "12:32:00 UTC", "event": "Kibana connection pool throws Fatal Handshake Timeout" },
+      { "time": "12:34:00 UTC", "event": "Pod crashes; liveness probes fail thrice consecutively" },
+      { "time": "12:34:49 UTC", "event": "Rollout restart approved by SRE. Deployment fully healed." }
+    ],
+    "comments": [
+      { "id": "c3", "user": "sre_sarah", "role": "Senior DevOps", "timestamp": "2026-07-19T12:40:00Z", "text": "Healed. Increased initialDelaySeconds to 60 to give Elasticsearch plenty of time to accept socket registrations on startup." }
+    ]
+  }
+]
