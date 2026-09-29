@@ -121,3 +121,57 @@ export function correlateInfrastructureEvents(
 
   return groups.filter(g => g.eventIds.length > 1);
 }
+
+
+export async function correlateDurableInfrastructureEvents(
+  organizationId: string,
+  windowMinutes = 15,
+  limit = 1000
+): Promise<CorrelatedEventGroup[]> {
+  const { loadDurableHistory } = await import('./durableInfrastructureHistoryService.js');
+  const history = await loadDurableHistory(organizationId, limit);
+  const events = history.events
+    .filter((e: InfrastructureEvent) => e.organizationId === organizationId)
+    .sort((a: InfrastructureEvent, b: InfrastructureEvent) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+  const windowMs = windowMinutes * 60 * 1000;
+  const groups: CorrelatedEventGroup[] = [];
+  for (const event of events) {
+    const ts = new Date(event.timestamp).getTime();
+    const group = groups.find(g =>
+      ts - new Date(g.lastSeen).getTime() <= windowMs &&
+      (g.resourceIds.includes(event.resourceId) ||
+       g.sources.includes(event.source) ||
+       event.tags?.some(tag => g.tags.includes(tag)))
+    );
+    if (!group) {
+      groups.push({
+        correlationId: event.correlationId || 'corr-' + crypto.createHash('sha256')
+          .update([organizationId, event.timestamp, event.resourceId, event.eventType].join('|'))
+          .digest('hex').slice(0, 24),
+        eventIds: [event.id],
+        sources: [event.source],
+        resourceIds: [event.resourceId],
+        severity: event.severity,
+        firstSeen: event.timestamp,
+        lastSeen: event.timestamp,
+        confidence: 0.55,
+        tags: [...(event.tags || [])]
+      });
+      continue;
+    }
+    group.eventIds.push(event.id);
+    if (!group.sources.includes(event.source)) group.sources.push(event.source);
+    if (!group.resourceIds.includes(event.resourceId)) group.resourceIds.push(event.resourceId);
+    for (const tag of event.tags || []) if (!group.tags.includes(tag)) group.tags.push(tag);
+    group.lastSeen = event.timestamp;
+    if (severityRank(event.severity) > severityRank(group.severity)) group.severity = event.severity;
+    group.confidence = Math.min(0.99, 0.55 +
+      (group.sources.length >= 2 ? 0.15 : 0) +
+      (group.resourceIds.length >= 2 ? 0.10 : 0) +
+      Math.min(group.eventIds.length, 5) * 0.05);
+  }
+  return groups.filter(g => g.eventIds.length > 1);
+}
