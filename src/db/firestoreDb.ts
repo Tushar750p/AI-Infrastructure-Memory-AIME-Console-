@@ -38,18 +38,6 @@ try {
   console.warn('[Database] Could not read firebase-applet-config.json:', e);
 }
 
-// Firebase client SDK is intentionally not initialized here. All Firestore access is server-side via Admin SDK.
-const app = {
-  apiKey: firebaseConfig.apiKey || 'placeholder-key',
-  authDomain: firebaseConfig.authDomain || 'placeholder.firebaseapp.com',
-  projectId: firebaseConfig.projectId || 'placeholder-project',
-  storageBucket: firebaseConfig.storageBucket || 'placeholder.appspot.com',
-  messagingSenderId: firebaseConfig.messagingSenderId || '123456789',
-  appId: firebaseConfig.appId || '1:123456789:web:123456'
-});
-
-// Initialize Firestore with specific database ID
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 
 // Database Status State
 let dbConnected = true;
