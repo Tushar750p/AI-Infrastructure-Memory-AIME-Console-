@@ -70,6 +70,11 @@ export function calculateFailureRisk(
       signals.push(`${thresholdEvents} threshold events indicate repeated resource pressure.`);
     }
 
+    if (critical >= 1 && thresholdEvents >= 2) {
+      score += 10;
+      signals.push('A critical event overlaps repeated threshold pressure.');
+    }
+
     if (incidents >= 2) {
       score += 20;
       signals.push(`${incidents} incidents were detected for the same resource.`);
