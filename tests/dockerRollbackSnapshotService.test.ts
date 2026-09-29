@@ -99,6 +99,14 @@ assert.equal(retained.length, 5);
 assert.equal(getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-0'), null);
 assert.ok(getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-5'));
 
+const tampered = getDockerRollbackCandidate('org-retention', 'host-1', 'container-1', 'event-5');
+assert.ok(tampered);
+tampered.image = 'tampered:image';
+assert.throws(
+  () => verifyDockerRollbackSnapshot(tampered),
+  /integrity verification failed/
+);
+
 delete process.env.AIME_DOCKER_ROLLBACK_RETENTION;
 
 console.log('Docker rollback snapshot integrity, tenant isolation, and retention tests passed.');
