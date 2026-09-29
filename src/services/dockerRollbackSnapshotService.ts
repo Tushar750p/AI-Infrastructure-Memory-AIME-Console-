@@ -191,9 +191,13 @@ export function listDockerRollbackCandidates(organizationId: string, hostId: str
       candidate.hostId === hostId &&
       candidate.containerId === containerId
     )
-    .sort((a: any, b: any) =>
-      new Date(b.candidateCreatedAt || 0).getTime() - new Date(a.candidateCreatedAt || 0).getTime()
-    )
+    .sort((a: any, b: any) => {
+      const timeDiff =
+        new Date(b.candidateCreatedAt || 0).getTime() -
+        new Date(a.candidateCreatedAt || 0).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return String(b.candidateEventId || '').localeCompare(String(a.candidateEventId || ''));
+    })
     .slice(0, Math.min(Math.max(limit, 1), 100));
 }
 
