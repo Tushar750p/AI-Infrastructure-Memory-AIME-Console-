@@ -19,6 +19,10 @@ function hashRefreshToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function hashAuthSecret(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function base32Encode(input: Buffer): string {
@@ -197,7 +201,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       organizationId: orgId,
       organizationName,
       isVerified: false,
-      verificationToken: emailVerificationToken,
+      verificationTokenHash: hashAuthSecret(emailVerificationToken),
       mfaEnabled: false,
       mfaSecret: null,
       backupCodes: [],
@@ -533,7 +537,7 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
       id: `reset-${Date.now()}`,
       userId: user.id,
       email: user.email,
-      token: resetToken,
+      tokenHash: hashAuthSecret(resetToken),
       expiresAt: resetExpiry,
       used: false,
       createdAt: new Date().toISOString()
@@ -544,7 +548,6 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
 
     return res.json({
       message: 'If an account exists with this email, password reset instructions have been generated.',
-      expiresAt: resetExpiry
     });
   }
 
@@ -611,14 +614,15 @@ authRouter.post('/verify-email', (req: Request, res: Response) => {
   }
 
   const users = getCollectionData('users', []);
-  const user = users.find((u: any) => u.verificationToken === token);
+  const user = users.find((u: any) => (u.verificationTokenHash ? u.verificationTokenHash === hashAuthSecret(token) : u.verificationToken === token));
 
   if (!user) {
     return res.status(400).json({ error: 'Invalid or expired verification token.' });
   }
 
   user.isVerified = true;
-  user.verificationToken = null;
+  delete user.verificationToken;
+  user.verificationTokenHash = null;
   user.updatedAt = new Date().toISOString();
   setCollectionData('users', users);
 
