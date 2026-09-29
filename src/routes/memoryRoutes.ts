@@ -25,7 +25,7 @@ import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
 import { getResourceTimeline, getResourceStateAt, getDurableResourceTimeline, getDurableResourceStateAt } from '../services/timeMachineService.js';
 import { analyzeIncident } from '../services/incidentIntelligenceService.js';
-import { calculateFailureRisk } from '../services/failureRiskService.js';
+import { calculateFailureRiskDurable } from '../services/failureRiskService.js';
 import { proposeRemediation, approveRemediation, listRemediations, proposeRollback, approveRollback, getRollback } from '../services/remediationService.js';
 import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 import { executeDockerRemediation } from '../services/dockerRemediationAdapter.js';
@@ -245,13 +245,13 @@ memoryRouter.post('/infrastructure/collectors/run', requirePermission('infra:wri
   }
 });
 
-memoryRouter.get('/infrastructure/risk', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/risk', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const lookbackHours = Math.min(Math.max(parseInt(String(req.query.lookbackHours || '24'), 10) || 24, 1), 168);
     res.json({
       success: true,
       lookbackHours,
-      signals: calculateFailureRisk(getTenantId(req), lookbackHours)
+      signals: await calculateFailureRiskDurable(getTenantId(req), lookbackHours)
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
