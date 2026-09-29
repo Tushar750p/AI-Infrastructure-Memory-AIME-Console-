@@ -365,6 +365,7 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
   const storedRefresh = refreshTokens.find((r: any) =>
     r.userId === payload.userId &&
     r.token === refreshToken &&
+    !r.revokedAt &&
     new Date(r.expiresAt).getTime() > Date.now()
   );
   if (!storedRefresh) {
