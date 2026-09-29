@@ -23,10 +23,24 @@ import { collectLinuxEvents } from '../services/linuxEventCollector.js';
 import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
 import { getResourceTimeline, getResourceStateAt } from '../services/timeMachineService.js';
+import { analyzeIncident } from '../services/incidentIntelligenceService.js';
 
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.get('/infrastructure/incidents/:correlationId/intelligence', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const correlationId = decodeURIComponent(req.params.correlationId);
+    const result = analyzeIncident(getTenantId(req), correlationId);
+    if (!result) {
+      return res.status(404).json({ success: false, error: 'Incident correlation not found.' });
+    }
+    res.json({ success: true, intelligence: result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 memoryRouter.get('/infrastructure/time-machine/:resourceId', (req: AuthenticatedRequest, res: Response) => {
   try {
     const start = req.query.start as string | undefined;
