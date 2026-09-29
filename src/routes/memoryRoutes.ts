@@ -22,10 +22,44 @@ import { collectDockerEvents, collectDockerState } from '../services/dockerEvent
 import { collectLinuxEvents } from '../services/linuxEventCollector.js';
 import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
+import { getResourceTimeline, getResourceStateAt } from '../services/timeMachineService.js';
 
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.get('/infrastructure/time-machine/:resourceId', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const start = req.query.start as string | undefined;
+    const end = req.query.end as string | undefined;
+    const source = req.query.source as string | undefined;
+    const limit = Math.min(parseInt(String(req.query.limit || '200'), 10) || 200, 1000);
+    res.json({
+      success: true,
+      resourceId: req.params.resourceId,
+      timeline: getResourceTimeline(getTenantId(req), req.params.resourceId, { start, end, source, limit })
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.get('/infrastructure/time-machine/:resourceId/state', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const at = String(req.query.at || '');
+    if (!at || Number.isNaN(new Date(at).getTime())) {
+      return res.status(400).json({ success: false, error: 'Valid "at" timestamp is required.' });
+    }
+    res.json({
+      success: true,
+      resourceId: req.params.resourceId,
+      at,
+      state: getResourceStateAt(getTenantId(req), req.params.resourceId, at)
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 memoryRouter.get('/infrastructure/graph', (req: AuthenticatedRequest, res: Response) => {
   try {
     const graph = buildKnowledgeGraph(getTenantId(req));
