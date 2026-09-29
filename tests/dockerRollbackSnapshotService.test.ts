@@ -67,7 +67,7 @@ candidateBase.integrityHash = createHash(candidateBase);
 
 function createHash(snapshot: any) {
   const { integrityHash, ...rest } = snapshot;
-  return require('node:crypto').createHash('sha256').update(JSON.stringify(rest)).digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify(rest)).digest('hex');
 }
 
 setCollectionData('dockerRollbackCandidates', []);
