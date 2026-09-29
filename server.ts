@@ -23,6 +23,14 @@ const app = express();
 
 // Baseline HTTP hardening. Keep this dependency-free for the current deployment.
 app.disable('x-powered-by');
+
+if (process.env.NODE_ENV === 'production') {
+  // Production traffic is expected to terminate over HTTPS.
+  app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+    next();
+  });
+}
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
