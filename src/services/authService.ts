@@ -47,8 +47,9 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   'Viewer': ['infra:read', 'logs:read']
 };
 
-// Seed default enterprise operators if not exist
+// Seed default enterprise operators only when explicitly enabled.
 export async function ensureSeedUsers() {
+  if (process.env.SEED_DEMO_DATA !== 'true') return;
   const users = getCollectionData('users', []);
   const now = new Date().toISOString();
 
