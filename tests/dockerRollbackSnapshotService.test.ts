@@ -21,10 +21,6 @@ assert.throws(
   /integrity verification failed/
 );
 
-assert.throws(() => verifyDockerRollbackSnapshot({ ...unsigned, integrityHash: 'tampered' }), /integrity verification failed/);
-
-console.log('Docker rollback snapshot integrity tests passed.');
-
 const unsigned = {
   organizationId: 'org-test',
   hostId: 'host-1',
@@ -58,3 +54,7 @@ const unsigned = {
   readOnlyRootfs: false,
   schemaVersion: 3
 };
+
+assert.throws(() => verifyDockerRollbackSnapshot({ ...unsigned, integrityHash: 'tampered' }), /integrity verification failed/);
+
+console.log('Docker rollback snapshot integrity tests passed.');
