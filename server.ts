@@ -54,13 +54,16 @@ app.use((req, res, next) => {
         "base-uri 'self'",
         "object-src 'none'",
         "frame-ancestors 'none'",
+        "form-action 'self'",
         "img-src 'self' data: blob:",
         "font-src 'self' data: https://fonts.gstatic.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "script-src 'self'",
+        "script-src-attr 'none'",
         "connect-src 'self'",
         "worker-src 'self' blob:",
         "manifest-src 'self'",
+        "upgrade-insecure-requests",
         "report-uri /api/security/csp-report",
       ].join('; ')
     );
