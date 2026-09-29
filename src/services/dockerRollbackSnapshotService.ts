@@ -16,7 +16,7 @@ function protectEnv(env: string[]) {
   });
 }
 
-export function restoreProtectedEnv(env: string[] = []) {
+export function decodeSnapshotEnv(env: string[] = []) {
   return env.map((entry) => {
     const marker = '=__AIME_ENCRYPTED__';
     const index = entry.indexOf(marker);
