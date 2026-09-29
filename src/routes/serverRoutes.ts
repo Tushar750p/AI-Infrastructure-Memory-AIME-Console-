@@ -10,16 +10,22 @@ import {
   recordAlert
 } from '../services/sshService.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { findTenantRecord, getTenantId, tenantRecords } from '../services/tenantAccess.js';
 
 export const serverRouter = Router();
+
+function authorizedServer(req: AuthenticatedRequest, serverId: string) {
+  const servers = getCollectionData('servers', []);
+  return findTenantRecord(servers, getTenantId(req), (s: any) => s.id === serverId || s.ip === serverId);
+}
 
 // ==========================================
 // SERVER MANAGEMENT CRUD ENDPOINTS
 // ==========================================
 
 // GET /api/servers - List all infrastructure servers
-serverRouter.get('/servers', (req: Request, res: Response) => {
-  const servers = getCollectionData('servers', []);
+serverRouter.get('/servers', (req: AuthenticatedRequest, res: Response) => {
+  const servers = tenantRecords(getCollectionData('servers', []), getTenantId(req));
   // Return servers without exposing raw encrypted password secrets
   const sanitized = servers.map((s: any) => ({
     ...s,
@@ -30,10 +36,10 @@ serverRouter.get('/servers', (req: Request, res: Response) => {
 });
 
 // GET /api/servers/:id - Get server details by ID
-serverRouter.get('/servers/:id', (req: Request, res: Response) => {
+serverRouter.get('/servers/:id', (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const servers = getCollectionData('servers', []);
-  const server = servers.find((s: any) => s.id === id || s.ip === id);
+  const server = findTenantRecord(servers, getTenantId(req), (s: any) => s.id === id || s.ip === id);
 
   if (!server) {
     return res.status(404).json({ error: `Server with ID '${id}' not found.` });
@@ -69,7 +75,7 @@ serverRouter.post('/servers', requireAuth, (req: AuthenticatedRequest, res: Resp
     password: password ? encryptSecret(password) : undefined,
     privateKey: privateKey ? encryptSecret(privateKey) : undefined,
     passphrase: passphrase ? encryptSecret(passphrase) : undefined,
-    organizationId: req.organizationId || 'org-aime-01',
+    organizationId: getTenantId(req),
     environment: environment || 'production',
     tags: tags || ['linux', 'ssh', 'cloud'],
     status: 'UNKNOWN',
@@ -111,7 +117,7 @@ serverRouter.post('/servers', requireAuth, (req: AuthenticatedRequest, res: Resp
 serverRouter.put('/servers/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const servers = getCollectionData('servers', []);
-  const server = servers.find((s: any) => s.id === id);
+  const server = findTenantRecord(servers, getTenantId(req), (s: any) => s.id === id);
 
   if (!server) {
     return res.status(404).json({ error: 'Server not found.' });
@@ -139,13 +145,13 @@ serverRouter.put('/servers/:id', requireAuth, (req: AuthenticatedRequest, res: R
 serverRouter.delete('/servers/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   let servers = getCollectionData('servers', []);
-  const exists = servers.some((s: any) => s.id === id);
+  const exists = Boolean(findTenantRecord(servers, getTenantId(req), (s: any) => s.id === id));
 
   if (!exists) {
     return res.status(404).json({ error: 'Server not found.' });
   }
 
-  servers = servers.filter((s: any) => s.id !== id);
+  servers = servers.filter((s: any) => s.id !== id || s.organizationId !== getTenantId(req));
   setCollectionData('servers', servers);
 
   res.json({ message: 'Server removed from infrastructure management.' });
@@ -156,11 +162,13 @@ serverRouter.delete('/servers/:id', requireAuth, (req: AuthenticatedRequest, res
 // ==========================================
 
 // POST /api/ssh/connect - Test / Initiate SSH connection
-serverRouter.post('/ssh/connect', async (req: Request, res: Response) => {
+serverRouter.post('/ssh/connect', async (req: AuthenticatedRequest, res: Response) => {
   const { serverId } = req.body;
   if (!serverId) {
     return res.status(400).json({ error: 'serverId is required.' });
   }
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const session = await getSshSession(serverId);
@@ -176,14 +184,15 @@ serverRouter.post('/ssh/connect', async (req: Request, res: Response) => {
 });
 
 // POST /api/ssh/disconnect - Terminate SSH connection
-serverRouter.post('/ssh/disconnect', (req: Request, res: Response) => {
+serverRouter.post('/ssh/disconnect', (req: AuthenticatedRequest, res: Response) => {
   const { serverId } = req.body;
+  if (!serverId || !authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
   res.json({ status: 'DISCONNECTED', message: `SSH session for server ${serverId} terminated.` });
 });
 
 // GET /api/ssh/status - Get connection pool status
-serverRouter.get('/ssh/status', (req: Request, res: Response) => {
-  const servers = getCollectionData('servers', []);
+serverRouter.get('/ssh/status', (req: AuthenticatedRequest, res: Response) => {
+  const servers = tenantRecords(getCollectionData('servers', []), getTenantId(req));
   const onlineCount = servers.filter((s: any) => s.status === 'ONLINE').length;
 
   res.json({
@@ -200,8 +209,10 @@ serverRouter.get('/ssh/status', (req: Request, res: Response) => {
 // ==========================================
 
 // GET /api/system/metrics - Get live metrics for server
-serverRouter.get('/system/metrics', async (req: Request, res: Response) => {
+serverRouter.get('/system/metrics', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const metrics = await getSystemMetrics(serverId);
@@ -212,8 +223,10 @@ serverRouter.get('/system/metrics', async (req: Request, res: Response) => {
 });
 
 // GET /api/system/processes - Get live process list
-serverRouter.get('/system/processes', async (req: Request, res: Response) => {
+serverRouter.get('/system/processes', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const processes = await getSystemProcesses(serverId);
@@ -224,8 +237,10 @@ serverRouter.get('/system/processes', async (req: Request, res: Response) => {
 });
 
 // GET /api/system/services - Get Systemd services
-serverRouter.get('/system/services', async (req: Request, res: Response) => {
+serverRouter.get('/system/services', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const services = await getSystemdServices(serverId);
@@ -236,8 +251,10 @@ serverRouter.get('/system/services', async (req: Request, res: Response) => {
 });
 
 // GET /api/system/packages - Get installed packages & pending updates
-serverRouter.get('/system/packages', async (req: Request, res: Response) => {
+serverRouter.get('/system/packages', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const pkgRes = await executeCommand(serverId, 'dpkg-query -l | head -n 30 || rpm -qa | head -n 30');
@@ -256,9 +273,11 @@ serverRouter.get('/system/packages', async (req: Request, res: Response) => {
 });
 
 // GET /api/system/logs - Get System logs / Journalctl
-serverRouter.get('/system/logs', async (req: Request, res: Response) => {
+serverRouter.get('/system/logs', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
   const linesCount = (req.query.lines as string) || '50';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const logRes = await executeCommand(serverId, `journalctl -n ${linesCount} --no-pager || tail -n ${linesCount} /var/log/syslog || tail -n ${linesCount} /var/log/messages`);
@@ -280,6 +299,8 @@ serverRouter.post('/system/command', requireAuth, async (req: AuthenticatedReque
     return res.status(400).json({ error: 'serverId and command are required.' });
   }
 
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
+
   try {
     const result = await executeCommand(serverId, command, req.user.email);
     res.json(result);
@@ -289,9 +310,11 @@ serverRouter.post('/system/command', requireAuth, async (req: AuthenticatedReque
 });
 
 // GET /api/system/files - Browse SFTP / File directory
-serverRouter.get('/system/files', async (req: Request, res: Response) => {
+serverRouter.get('/system/files', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
   const dirPath = (req.query.path as string) || '/var/log';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const lsRes = await executeCommand(serverId, `ls -la ${dirPath}`);
@@ -312,6 +335,8 @@ serverRouter.post('/system/upload', requireAuth, async (req: AuthenticatedReques
     return res.status(400).json({ error: 'serverId and targetPath are required.' });
   }
 
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
+
   try {
     const escapedContent = (fileContent || '').replace(/'/g, "'\\''");
     await executeCommand(serverId, `echo '${escapedContent}' > ${targetPath}`, req.user.email);
@@ -322,9 +347,11 @@ serverRouter.post('/system/upload', requireAuth, async (req: AuthenticatedReques
 });
 
 // GET /api/system/download - Read / Download file content
-serverRouter.get('/system/download', async (req: Request, res: Response) => {
+serverRouter.get('/system/download', async (req: AuthenticatedRequest, res: Response) => {
   const serverId = (req.query.serverId as string) || 'srv-01-primary';
   const filePath = (req.query.path as string) || '/etc/hostname';
+
+  if (!authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
 
   try {
     const catRes = await executeCommand(serverId, `cat ${filePath}`);
