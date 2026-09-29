@@ -119,26 +119,60 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
       if (!snapshot.running && current.State?.Running) await container.stop();
     } else if (rollback.rollbackType === 'docker_container_config') {
       const wasRunning = Boolean(current.State?.Running);
+      const originalName = String(current.Name || snapshot.name || containerId).replace(/^\//, '');
       if (wasRunning) await container.stop();
       await container.remove({ force: true });
-      const recreated = await docker.createContainer({
-        name: String(snapshot.name || containerId).replace(/^\//, ''),
-        Image: snapshot.image,
-        Env: decodeSnapshotEnv(snapshot.env),
-        Cmd: snapshot.cmd,
-        Entrypoint: snapshot.entrypoint,
-        WorkingDir: snapshot.workingDir,
-        ExposedPorts: snapshot.exposedPorts,
-        Labels: snapshot.labels,
-        HostConfig: {
-          Binds: snapshot.binds,
-          PortBindings: snapshot.portBindings,
-          NetworkMode: snapshot.networkMode,
-          RestartPolicy: snapshot.restartPolicy,
-          Privileged: snapshot.privileged
+
+      let recreated: any;
+      try {
+        recreated = await docker.createContainer({
+          name: originalName,
+          Image: snapshot.image,
+          Env: decodeSnapshotEnv(snapshot.env),
+          Cmd: snapshot.cmd,
+          Entrypoint: snapshot.entrypoint,
+          WorkingDir: snapshot.workingDir,
+          ExposedPorts: snapshot.exposedPorts,
+          Labels: snapshot.labels,
+          HostConfig: {
+            Binds: snapshot.binds,
+            PortBindings: snapshot.portBindings,
+            NetworkMode: snapshot.networkMode,
+            RestartPolicy: snapshot.restartPolicy,
+            Privileged: snapshot.privileged
+          }
+        } as any);
+        if (snapshot.running) await recreated.start();
+      } catch (rollbackError) {
+        // Best-effort recovery: the original container has already been removed,
+        // so recreate it from the current inspected configuration before failing.
+        try {
+          const recovery = await docker.createContainer({
+            name: originalName,
+            Image: current.Config?.Image,
+            Env: current.Config?.Env,
+            Cmd: current.Config?.Cmd,
+            Entrypoint: current.Config?.Entrypoint,
+            WorkingDir: current.Config?.WorkingDir,
+            ExposedPorts: current.Config?.ExposedPorts,
+            Labels: current.Config?.Labels,
+            HostConfig: {
+              Binds: current.HostConfig?.Binds,
+              PortBindings: current.HostConfig?.PortBindings,
+              NetworkMode: current.HostConfig?.NetworkMode,
+              RestartPolicy: current.HostConfig?.RestartPolicy,
+              Privileged: current.HostConfig?.Privileged
+            }
+          } as any);
+          if (wasRunning) await recovery.start();
+        } catch (recoveryError) {
+          throw new Error(
+            `Docker rollback failed and recovery failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}; ` +
+            `recovery: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`
+          );
         }
-      } as any);
-      if (snapshot.running) await recreated.start();
+        throw rollbackError;
+      }
     } else {
       throw new Error('Unsupported Docker rollback type.');
     }
