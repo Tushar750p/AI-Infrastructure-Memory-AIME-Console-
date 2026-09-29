@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { dockerRollbackSnapshotKey, verifyDockerRollbackSnapshot } from '../src/services/dockerRollbackSnapshotService.js';
+import { dockerRollbackSnapshotKey, verifyDockerRollbackSnapshot, preserveDockerRollbackCandidate, listDockerRollbackCandidates, getDockerRollbackCandidate } from '../src/services/dockerRollbackSnapshotService.js';
+import { setCollectionData, getCollectionData } from '../src/db/firestoreDb.js';
 
 assert.equal(
   dockerRollbackSnapshotKey('org-test', 'host-1', 'container-1'),
@@ -57,4 +58,28 @@ const unsigned = {
 
 assert.throws(() => verifyDockerRollbackSnapshot({ ...unsigned, integrityHash: 'tampered' }), /integrity verification failed/);
 
-console.log('Docker rollback snapshot integrity tests passed.');
+const candidateBase = {
+  ...unsigned,
+  integrityHash: ''
+};
+candidateBase.integrityHash = createHash(candidateBase);
+
+function createHash(snapshot: any) {
+  const { integrityHash, ...rest } = snapshot;
+  return require('node:crypto').createHash('sha256').update(JSON.stringify(rest)).digest('hex');
+}
+
+setCollectionData('dockerRollbackCandidates', []);
+const keyA = preserveDockerRollbackCandidate('org-a', 'host-1', 'container-1', candidateBase, 'event-a');
+const keyB = preserveDockerRollbackCandidate('org-b', 'host-1', 'container-1', candidateBase, 'event-b');
+
+assert.ok(getDockerRollbackCandidate('org-a', 'host-1', 'container-1', 'event-a'));
+assert.equal(getDockerRollbackCandidate('org-a', 'host-1', 'container-1', 'event-b'), null);
+assert.equal(getDockerRollbackCandidate('org-b', 'host-1', 'container-1', 'event-a'), null);
+assert.equal(listDockerRollbackCandidates('org-a', 'host-1', 'container-1').length, 1);
+assert.equal(listDockerRollbackCandidates('org-b', 'host-1', 'container-1').length, 1);
+assert.match(keyA, /org-a/);
+assert.match(keyB, /org-b/);
+
+console.log('Docker rollback snapshot integrity and tenant-isolation tests passed.');
+
