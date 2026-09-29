@@ -148,6 +148,7 @@ export interface RollbackAction {
   verification?: string;
   failureReason?: string;
   evidenceEventIds: string[];
+  targetSnapshotId?: string;
 }
 
 function rollbackId() { return 'rollback-' + crypto.randomUUID(); }
