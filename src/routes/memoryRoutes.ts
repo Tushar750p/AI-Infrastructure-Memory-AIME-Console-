@@ -24,8 +24,8 @@ import { collectLinuxEvents } from '../services/linuxEventCollector.js';
 import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
 import { getResourceTimeline, getResourceStateAt, getDurableResourceTimeline, getDurableResourceStateAt } from '../services/timeMachineService.js';
-import { analyzeIncident } from '../services/incidentIntelligenceService.js';
-import { calculateFailureRisk } from '../services/failureRiskService.js';
+import { analyzeIncidentDurable } from '../services/incidentIntelligenceService.js';
+import { calculateFailureRiskDurable } from '../services/failureRiskService.js';
 import { proposeRemediation, approveRemediation, listRemediations, proposeRollback, approveRollback, getRollback } from '../services/remediationService.js';
 import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 import { executeDockerRemediation } from '../services/dockerRemediationAdapter.js';
@@ -251,7 +251,7 @@ memoryRouter.get('/infrastructure/risk', async (req: AuthenticatedRequest, res: 
     res.json({
       success: true,
       lookbackHours,
-      signals: await calculateFailureRisk(getTenantId(req), lookbackHours)
+      signals: await calculateFailureRiskDurable(getTenantId(req), lookbackHours)
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -261,7 +261,7 @@ memoryRouter.get('/infrastructure/risk', async (req: AuthenticatedRequest, res: 
 memoryRouter.get('/infrastructure/incidents/:correlationId/intelligence', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const correlationId = decodeURIComponent(req.params.correlationId);
-    const result = await analyzeIncident(getTenantId(req), correlationId);
+    const result = await analyzeIncidentDurable(getTenantId(req), correlationId);
     if (!result) {
       return res.status(404).json({ success: false, error: 'Incident correlation not found.' });
     }
