@@ -18,6 +18,7 @@ export interface RemediationAction {
   reason: string;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   status: RemediationStatus;
+  executionLock?: string;
   proposedBy: string;
   approvedBy?: string;
   createdAt: string;
@@ -89,6 +90,9 @@ export function transitionRemediation(
   if (index < 0) return null;
 
   const action = actions[index];
+  if (from === 'approved' && to === 'executing' && action.executionLock) {
+    throw new Error('Remediation execution is already locked.');
+  }
   if (action.status !== from) {
     throw new Error(`Invalid remediation transition: ${action.status} -> ${to}`);
   }
@@ -97,6 +101,8 @@ export function transitionRemediation(
   actions[index] = {
     ...action,
     status: to,
+    ...(to === 'executing' ? { executionLock: crypto.randomUUID() } : {}),
+    ...(to === 'verified' || to === 'failed' ? { executionLock: undefined } : {}),
     ...(to === 'executing' ? { executingAt: now } : {}),
     ...(to === 'verified'
       ? { executedAt: action.executedAt || now, verifiedAt: now, verification: details?.verification }
