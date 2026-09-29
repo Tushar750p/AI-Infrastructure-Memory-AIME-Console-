@@ -47,13 +47,15 @@ async function runAuthSuite() {
   const mockUser = { id: 'usr-test-99', email: 'test@aime.internal', role: 'DevOps Engineer', organizationId: 'org-test-01' };
   const mockSessionId = 'sess-test-888';
 
-  const tokens = generateTokens(mockUser, mockSessionId);
+  const tokens = generateTokens(mockUser, mockSessionId, 'family-test-01');
   assert(typeof tokens.accessToken === 'string', 'Generated valid access token string');
   assert(typeof tokens.refreshToken === 'string', 'Generated valid refresh token string');
 
   const decodedAccess = verifyAccessToken(tokens.accessToken);
   assert(decodedAccess !== null && decodedAccess.userId === mockUser.id, 'Verified Access Token payload');
   assert(decodedAccess.organizationId === 'org-test-01', 'Access Token includes organizationId');
+  assert(decodedAccess.familyId === 'family-test-01', 'Access Token includes refresh token family ID');
+  assert(verifyRefreshToken(tokens.refreshToken)?.familyId === 'family-test-01', 'Refresh Token includes refresh token family ID');
 
   const decodedRefresh = verifyRefreshToken(tokens.refreshToken);
   assert(decodedRefresh !== null && decodedRefresh.type === 'refresh', 'Verified Refresh Token payload');
