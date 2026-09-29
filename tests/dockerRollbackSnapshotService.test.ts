@@ -143,7 +143,7 @@ function legacyEncrypt(plainText: string) {
 const legacySecret = legacyEncrypt('legacy-test-secret');
 const legacySnapshot = {
   ...unsigned,
-  env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacyLikeSecret}`],
+  env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacySecret}`],
   integrityHash: ''
 };
 legacySnapshot.integrityHash = createHash(legacySnapshot);
