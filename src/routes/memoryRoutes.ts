@@ -24,10 +24,24 @@ import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
 import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
 import { getResourceTimeline, getResourceStateAt } from '../services/timeMachineService.js';
 import { analyzeIncident } from '../services/incidentIntelligenceService.js';
+import { calculateFailureRisk } from '../services/failureRiskService.js';
 
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.get('/infrastructure/risk', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const lookbackHours = Math.min(Math.max(parseInt(String(req.query.lookbackHours || '24'), 10) || 24, 1), 168);
+    res.json({
+      success: true,
+      lookbackHours,
+      signals: calculateFailureRisk(getTenantId(req), lookbackHours)
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 memoryRouter.get('/infrastructure/incidents/:correlationId/intelligence', (req: AuthenticatedRequest, res: Response) => {
   try {
     const correlationId = decodeURIComponent(req.params.correlationId);
