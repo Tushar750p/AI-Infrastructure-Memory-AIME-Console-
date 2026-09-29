@@ -361,6 +361,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     const { accessToken, refreshToken } = generateTokens(user, sessionId);
 
     // Save refresh token
+    const familyId = sessionId;
     const refreshTokens = getCollectionData('refreshTokens', []);
     refreshTokens.push({
       id: `rt-${Date.now()}`,
