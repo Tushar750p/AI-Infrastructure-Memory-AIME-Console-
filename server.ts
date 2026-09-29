@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { initializeFirestoreDatabase, getCollectionData, setCollectionData, getDatabaseHealth } from './src/db/firestoreDb.js';
-import { authRouter } from './src/routes/authRoutes.js';
+import { authRouter, requireAuth } from './src/routes/authRoutes.js';
 import { serverRouter } from './src/routes/serverRoutes.js';
 import { dockerRouter } from './src/routes/dockerRoutes.js';
 import { k8sRouter } from './src/routes/k8sRoutes.js';
@@ -17,10 +17,24 @@ import { storeMemoryItem } from './src/services/memoryEngine.js';
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+
+// Baseline HTTP hardening. Keep this dependency-free for the current deployment.
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 app.use('/api/auth', authRouter);
+
+// Every non-auth API endpoint requires an authenticated session.
+// Individual routes can still apply stricter role/permission checks.
+app.use('/api', requireAuth);
 app.use('/api', serverRouter);
 app.use('/api', dockerRouter);
 app.use('/api', k8sRouter);
