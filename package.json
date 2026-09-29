@@ -14,7 +14,9 @@
     "test:ssh": "tsx tests/ssh.test.ts",
     "test:docker": "tsx tests/docker.test.ts",
     "test:k8s": "tsx tests/k8s.test.ts",
-    "test:aws": "tsx tests/aws.test.ts"
+    "test:aws": "tsx tests/aws.test.ts",
+    "test:rollback": "tsx tests/remediationService.test.ts && tsx tests/dockerRollbackAdapter.test.ts && tsx tests/dockerRollbackSnapshotService.test.ts && tsx tests/dockerAutomaticSnapshot.test.ts",
+    "test:rollback:snapshots": "tsx tests/dockerRollbackSnapshotService.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cloudtrail": "^3.1094.0",
