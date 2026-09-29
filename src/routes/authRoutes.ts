@@ -422,7 +422,9 @@ authRouter.post('/logout', requireAuth, (req: AuthenticatedRequest, res: Respons
 });
 
 // 4. REFRESH TOKEN
-authRouter.post('/refresh', (req: Request, res: Response) => {
+authRouter.post('/refresh', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `refresh:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 60, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many token refresh attempts. Please try again later.' });
   const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
 
   if (!refreshToken) {
@@ -484,7 +486,8 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
     userId: user.id,
     token: newRefresh,
     createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    familyId
   });
   setCollectionData('refreshTokens', refreshTokens);
 
