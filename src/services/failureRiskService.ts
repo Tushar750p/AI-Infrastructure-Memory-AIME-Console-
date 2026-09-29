@@ -50,6 +50,7 @@ function level(score: number): FailureRiskSignal['level'] {
   return 'low';
 }
 
+
 export async function calculateFailureRiskDurable(organizationId: string, lookbackHours = 24): Promise<FailureRiskSignal[]> {
   const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
   const history = await loadDurableHistory(organizationId, 1000);
