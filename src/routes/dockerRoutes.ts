@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, AuthenticatedRequest } from './authRoutes.js';
+import { requireAuth, requirePermission, AuthenticatedRequest } from './authRoutes.js';
 import {
   listDockerContainers,
   inspectDockerContainer,
@@ -12,8 +12,13 @@ import {
   checkDockerEngineHealth
 } from '../services/dockerService.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { findTenantRecord, getTenantId, tenantRecords } from '../services/tenantAccess.js';
 
 export const dockerRouter = Router();
+
+function authorizedContainer(req: AuthenticatedRequest, id: string) {
+  return findTenantRecord(getCollectionData('containers', []), getTenantId(req), (c: any) => c.id === id || c.containerId === id);
+}
 
 // GET /api/docker/containers - List all containers
 dockerRouter.get('/docker/containers', async (req: Request, res: Response) => {
@@ -37,7 +42,7 @@ dockerRouter.get('/docker/containers/:id', async (req: Request, res: Response) =
 });
 
 // POST /api/docker/containers - Create a new container
-dockerRouter.post('/docker/containers', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+dockerRouter.post('/docker/containers', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   const { name, image, ports, env, volumes } = req.body;
 
   if (!name || !image) {
@@ -64,7 +69,8 @@ dockerRouter.post('/docker/containers', requireAuth, async (req: AuthenticatedRe
     blockIo: '0 B / 0 B',
     restartCount: 0,
     healthStatus: 'starting',
-    serverId: 'srv-01-primary'
+    serverId: 'srv-01-primary',
+    organizationId: getTenantId(req)
   };
 
   containers.unshift(newContainer);
@@ -87,8 +93,9 @@ dockerRouter.post('/docker/containers', requireAuth, async (req: AuthenticatedRe
 });
 
 // POST /api/docker/start/:id - Start container
-dockerRouter.post('/docker/start/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+dockerRouter.post('/docker/start/:id', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  if (!authorizedContainer(req, id)) return res.status(404).json({ error: 'Container not found.' });
   try {
     const result = await performContainerAction(id, 'start', req.user.email);
     res.json(result);
@@ -98,8 +105,9 @@ dockerRouter.post('/docker/start/:id', requireAuth, async (req: AuthenticatedReq
 });
 
 // POST /api/docker/stop/:id - Stop container
-dockerRouter.post('/docker/stop/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+dockerRouter.post('/docker/stop/:id', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  if (!authorizedContainer(req, id)) return res.status(404).json({ error: 'Container not found.' });
   try {
     const result = await performContainerAction(id, 'stop', req.user.email);
     res.json(result);
@@ -109,8 +117,9 @@ dockerRouter.post('/docker/stop/:id', requireAuth, async (req: AuthenticatedRequ
 });
 
 // POST /api/docker/restart/:id - Restart container
-dockerRouter.post('/docker/restart/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+dockerRouter.post('/docker/restart/:id', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  if (!authorizedContainer(req, id)) return res.status(404).json({ error: 'Container not found.' });
   try {
     const result = await performContainerAction(id, 'restart', req.user.email);
     res.json(result);
@@ -120,8 +129,9 @@ dockerRouter.post('/docker/restart/:id', requireAuth, async (req: AuthenticatedR
 });
 
 // DELETE /api/docker/containers/:id - Delete / Remove container
-dockerRouter.delete('/docker/containers/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+dockerRouter.delete('/docker/containers/:id', requirePermission('infra:delete'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  if (!authorizedContainer(req, id)) return res.status(404).json({ error: 'Container not found.' });
   try {
     const result = await performContainerAction(id, 'remove', req.user.email);
     res.json(result);

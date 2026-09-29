@@ -11,8 +11,72 @@ import {
   ROLE_PERMISSIONS
 } from '../services/authService.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { consumeAuthRateLimit } from '../services/authRateLimitService.js';
 
 export const authRouter = Router();
+
+function hashRefreshToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function hashAuthSecret(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32Encode(input: Buffer): string {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const byte of input) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  return output;
+}
+
+function base32Decode(input: string): Buffer {
+  const normalized = input.toUpperCase().replace(/=+$/, '');
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const char of normalized) {
+    const index = BASE32_ALPHABET.indexOf(char);
+    if (index < 0) throw new Error('Invalid base32 secret');
+    value = (value << 5) | index;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function generateTotpCode(secret: string, timestamp = Date.now()): string {
+  const counter = Math.floor(timestamp / 1000 / 30);
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeBigUInt64BE(BigInt(counter));
+  const digest = crypto.createHmac('sha1', base32Decode(secret)).update(counterBuffer).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary = ((digest[offset] & 0x7f) << 24) |
+    ((digest[offset + 1] & 0xff) << 16) |
+    ((digest[offset + 2] & 0xff) << 8) |
+    (digest[offset + 3] & 0xff);
+  return String(binary % 1_000_000).padStart(6, '0');
+}
+
+function verifyTotpCode(secret: string, code: string): boolean {
+  if (!/^\\d{6}$/.test(code)) return false;
+  const now = Date.now();
+  return [-1, 0, 1].some(offset => generateTotpCode(secret, now + offset * 30_000) === code);
+}
 
 // Middleware to extract and verify auth token
 export interface AuthenticatedRequest extends Request {
@@ -60,8 +124,25 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
+export function hasPermission(user: any, permission: string): boolean {
+  const permissions = ROLE_PERMISSIONS[user?.role || ''] || [];
+  return permissions.includes('*') || permissions.includes(permission);
+}
+
+export function requirePermission(permission: string) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !hasPermission(req.user, permission)) {
+      return res.status(403).json({ error: `Forbidden: missing permission ${permission}` });
+    }
+    next();
+  };
+}
+
 // 1. REGISTER
 authRouter.post('/register', async (req: Request, res: Response) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const rate = await consumeAuthRateLimit({ key: `register:ip:${ip}`, limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
   try {
     await ensureSeedUsers();
     const { email, password, confirmPassword, fullName, organizationName } = req.body;
@@ -120,7 +201,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       organizationId: orgId,
       organizationName,
       isVerified: false,
-      verificationToken: emailVerificationToken,
+      verificationTokenHash: hashAuthSecret(emailVerificationToken),
+      verificationTokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       mfaEnabled: false,
       mfaSecret: null,
       backupCodes: [],
@@ -155,30 +237,31 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     sessions.push(newSession);
     setCollectionData('sessions', sessions);
 
-    const { accessToken, refreshToken } = generateTokens(newUser, sessionId);
+    const { accessToken, refreshToken } = generateTokens(newUser, sessionId, sessionId);
 
     // Save refresh token
     const refreshTokens = getCollectionData('refreshTokens', []);
     refreshTokens.push({
       id: `rt-${Date.now()}`,
       userId,
-      token: refreshToken,
+      tokenHash: hashRefreshToken(refreshToken),
       createdAt: now,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      familyId: sessionId
     });
     setCollectionData('refreshTokens', refreshTokens);
 
     // Log Audit
     logAuthAudit('USER_REGISTER', userId, email, orgId, req.ip || '127.0.0.1', `Created organization ${organizationName}`);
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, secure: true, maxAge: 3600000 });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, maxAge: 7 * 86400000 });
+    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 3600000 });
+    res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 86400000 });
 
     res.status(201).json({
       message: 'Registration successful. Account and organization created.',
       accessToken,
       refreshToken,
-      emailVerificationToken,
       user: {
         id: newUser.id,
         email: newUser.email,
@@ -199,6 +282,11 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
 // 2. LOGIN
 authRouter.post('/login', async (req: Request, res: Response) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const emailKey = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const ipRate = await consumeAuthRateLimit({ key: `login:ip:${ip}`, limit: 30, windowMs: 15 * 60 * 1000 });
+  const accountRate = emailKey ? await consumeAuthRateLimit({ key: `login:account:${emailKey}`, limit: 10, windowMs: 15 * 60 * 1000 }) : { allowed: true };
+  if (!ipRate.allowed || !accountRate.allowed) return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   try {
     await ensureSeedUsers();
     const { email, password, mfaCode } = req.body;
@@ -243,7 +331,9 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       }
 
       // Verify MFA token or backup code
-      const isValidMfa = user.mfaSecret === mfaCode || (user.backupCodes && user.backupCodes.includes(mfaCode));
+      const isValidTotp = user.mfaSecret ? verifyTotpCode(user.mfaSecret, mfaCode) : false;
+      const isValidBackupCode = Boolean(user.backupCodes && user.backupCodes.includes(mfaCode));
+      const isValidMfa = isValidTotp || isValidBackupCode;
       if (!isValidMfa) {
         logAuthAudit('FAILED_MFA', user.id, user.email, user.organizationId, req.ip || '127.0.0.1', 'Invalid TOTP/Backup Code');
         return res.status(401).json({ error: 'Invalid Multi-Factor Authentication code.' });
@@ -280,20 +370,23 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     const { accessToken, refreshToken } = generateTokens(user, sessionId);
 
     // Save refresh token
+    const familyId = sessionId;
     const refreshTokens = getCollectionData('refreshTokens', []);
     refreshTokens.push({
       id: `rt-${Date.now()}`,
       userId: user.id,
-      token: refreshToken,
+      tokenHash: hashRefreshToken(refreshToken),
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      familyId
     });
     setCollectionData('refreshTokens', refreshTokens);
 
     logAuthAudit('USER_LOGIN', user.id, user.email, user.organizationId, req.ip || '127.0.0.1', 'Login successful');
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, secure: true, maxAge: 3600000 });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, maxAge: 7 * 86400000 });
+    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 3600000 });
+    res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 86400000 });
 
     res.json({
       message: 'Authentication successful',
@@ -339,7 +432,9 @@ authRouter.post('/logout', requireAuth, (req: AuthenticatedRequest, res: Respons
 });
 
 // 4. REFRESH TOKEN
-authRouter.post('/refresh', (req: Request, res: Response) => {
+authRouter.post('/refresh', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `refresh:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 60, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many token refresh attempts. Please try again later.' });
   const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
 
   if (!refreshToken) {
@@ -354,14 +449,68 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
   const users = getCollectionData('users', []);
   const user = users.find((u: any) => u.id === payload.userId);
 
+  const sessions = getCollectionData('sessions', []);
+  const session = sessions.find((s: any) => s.id === payload.sessionId && s.userId === payload.userId && s.active);
+  if (!session) {
+    return res.status(401).json({ error: 'Session is inactive or no longer exists' });
+  }
+
+  const refreshTokens = getCollectionData('refreshTokens', []);
+  const storedRefresh = refreshTokens.find((r: any) =>
+    r.userId === payload.userId &&
+    (r.tokenHash ? r.tokenHash === hashRefreshToken(refreshToken) : r.token === refreshToken)
+  );
+  if (!storedRefresh) {
+    return res.status(401).json({ error: 'Refresh token has been revoked or expired' });
+  }
+
+  // Migrate legacy plaintext refresh-token records to hashed storage on successful use.
+  if (!storedRefresh.tokenHash && storedRefresh.token === refreshToken) {
+    storedRefresh.tokenHash = hashRefreshToken(refreshToken);
+    delete storedRefresh.token;
+    setCollectionData('refreshTokens', refreshTokens);
+  }
+
+  if (storedRefresh.revokedAt) {
+    const familyId = storedRefresh.familyId || payload.familyId || payload.sessionId;
+    for (const tokenRecord of refreshTokens) {
+      if ((tokenRecord.familyId || tokenRecord.sessionId) === familyId && !tokenRecord.revokedAt) {
+        tokenRecord.revokedAt = new Date().toISOString();
+      }
+    }
+    const familySessions = sessions.filter((s: any) => s.id === payload.sessionId && s.active);
+    for (const familySession of familySessions) familySession.active = false;
+    setCollectionData('refreshTokens', refreshTokens);
+    setCollectionData('sessions', sessions);
+    logAuthAudit('REFRESH_TOKEN_REUSE', payload.userId, user?.email || 'unknown', payload.organizationId, req.ip || '127.0.0.1', 'Revoked refresh-token family after reuse detection');
+    return res.status(401).json({ error: 'Refresh token reuse detected. Session revoked; please sign in again.' });
+  }
+
+  if (new Date(storedRefresh.expiresAt).getTime() <= Date.now()) {
+    return res.status(401).json({ error: 'Refresh token has expired' });
+  }
+
   if (!user) {
     return res.status(401).json({ error: 'User no longer exists' });
   }
 
-  const { accessToken: newAccess, refreshToken: newRefresh } = generateTokens(user, payload.sessionId);
+  const familyId = storedRefresh.familyId || payload.familyId || payload.sessionId;
+  const { accessToken: newAccess, refreshToken: newRefresh } = generateTokens(user, payload.sessionId, familyId);
 
-  res.cookie('accessToken', newAccess, { httpOnly: true, secure: true, maxAge: 3600000 });
-  res.cookie('refreshToken', newRefresh, { httpOnly: true, secure: true, maxAge: 7 * 86400000 });
+  storedRefresh.revokedAt = new Date().toISOString();
+  refreshTokens.push({
+    id: `rt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: user.id,
+    tokenHash: hashRefreshToken(newRefresh),
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    familyId
+  });
+  setCollectionData('refreshTokens', refreshTokens);
+
+  const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const };
+  res.cookie('accessToken', newAccess, { ...cookieOptions, maxAge: 3600000 });
+  res.cookie('refreshToken', newRefresh, { ...cookieOptions, maxAge: 7 * 86400000 });
 
   res.json({
     accessToken: newAccess,
@@ -370,7 +519,9 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
 });
 
 // 5. FORGOT PASSWORD
-authRouter.post('/forgot-password', (req: Request, res: Response) => {
+authRouter.post('/forgot-password', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `password-reset:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many password reset requests. Please try again later.' });
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email address is required.' });
@@ -388,7 +539,7 @@ authRouter.post('/forgot-password', (req: Request, res: Response) => {
       id: `reset-${Date.now()}`,
       userId: user.id,
       email: user.email,
-      token: resetToken,
+      tokenHash: hashAuthSecret(resetToken),
       expiresAt: resetExpiry,
       used: false,
       createdAt: new Date().toISOString()
@@ -399,8 +550,6 @@ authRouter.post('/forgot-password', (req: Request, res: Response) => {
 
     return res.json({
       message: 'If an account exists with this email, password reset instructions have been generated.',
-      resetToken, // Returned for dev testing & direct verification
-      expiresAt: resetExpiry
     });
   }
 
@@ -409,6 +558,8 @@ authRouter.post('/forgot-password', (req: Request, res: Response) => {
 
 // 6. RESET PASSWORD
 authRouter.post('/reset-password', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `password-reset-complete:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many password reset attempts. Please try again later.' });
   const { token, newPassword, confirmPassword } = req.body;
 
   if (!token || !newPassword) {
@@ -425,7 +576,7 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
   }
 
   const resets = getCollectionData('passwordResets', []);
-  const resetRecord = resets.find((r: any) => r.token === token && !r.used && new Date(r.expiresAt).getTime() > Date.now());
+  const resetRecord = resets.find((r: any) => (r.tokenHash ? r.tokenHash === hashAuthSecret(token) : r.token === token) && !r.used && new Date(r.expiresAt).getTime() > Date.now());
 
   if (!resetRecord) {
     return res.status(400).json({ error: 'Invalid or expired password reset token.' });
@@ -441,9 +592,16 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
   const salt = await bcrypt.genSalt(10);
   user.passwordHash = await bcrypt.hash(newPassword, salt);
   user.updatedAt = new Date().toISOString();
+  const sessions = getCollectionData('sessions', []);
+  sessions.forEach((session: any) => { if (session.userId === user.id) session.active = false; });
+  setCollectionData('sessions', sessions);
+  const refreshTokens = getCollectionData('refreshTokens', []);
+  refreshTokens.forEach((record: any) => { if (record.userId === user.id) record.revokedAt = record.revokedAt || new Date().toISOString(); });
+  setCollectionData('refreshTokens', refreshTokens);
   setCollectionData('users', users);
 
   resetRecord.used = true;
+  delete resetRecord.token;
   setCollectionData('passwordResets', resets);
 
   logAuthAudit('PASSWORD_RESET_COMPLETE', user.id, user.email, user.organizationId, req.ip || '127.0.0.1');
@@ -452,21 +610,31 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
 });
 
 // 7. VERIFY EMAIL
-authRouter.post('/verify-email', (req: Request, res: Response) => {
+authRouter.post('/verify-email', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `verify-email:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many email verification attempts. Please try again later.' });
   const { token } = req.body;
   if (!token) {
     return res.status(400).json({ error: 'Verification token is required.' });
   }
 
   const users = getCollectionData('users', []);
-  const user = users.find((u: any) => u.verificationToken === token);
+  const user = users.find((u: any) => {
+    const tokenMatches = u.verificationTokenHash
+      ? u.verificationTokenHash === hashAuthSecret(token)
+      : u.verificationToken === token;
+    const notExpired = !u.verificationTokenExpiresAt || new Date(u.verificationTokenExpiresAt).getTime() > Date.now();
+    return tokenMatches && notExpired;
+  });
 
   if (!user) {
     return res.status(400).json({ error: 'Invalid or expired verification token.' });
   }
 
   user.isVerified = true;
-  user.verificationToken = null;
+  delete user.verificationToken;
+  user.verificationTokenHash = null;
+  delete user.verificationTokenExpiresAt;
   user.updatedAt = new Date().toISOString();
   setCollectionData('users', users);
 
@@ -478,7 +646,7 @@ authRouter.post('/verify-email', (req: Request, res: Response) => {
 // 8. MFA SETUP
 authRouter.post('/mfa/setup', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  const mfaSecret = crypto.randomBytes(10).toString('hex').toUpperCase(); // 20-char secret
+  const mfaSecret = base32Encode(crypto.randomBytes(20));
   const backupCodes = Array.from({ length: 6 }, () => crypto.randomBytes(4).toString('hex').toUpperCase());
 
   user.tempMfaSecret = mfaSecret;
@@ -503,8 +671,8 @@ authRouter.post('/mfa/verify', requireAuth, (req: AuthenticatedRequest, res: Res
     return res.status(400).json({ error: 'No MFA setup in progress.' });
   }
 
-  // Verify secret matches provided token or accept temp secret
-  if (code && (code === user.tempMfaSecret || code.length === 6)) {
+  // Verify an actual RFC 6238 TOTP code generated by the authenticator app.
+  if (code && verifyTotpCode(user.tempMfaSecret, code)) {
     user.mfaEnabled = true;
     user.mfaSecret = user.tempMfaSecret;
     user.backupCodes = user.tempBackupCodes || [];

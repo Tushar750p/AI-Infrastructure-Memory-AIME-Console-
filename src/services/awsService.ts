@@ -16,6 +16,12 @@ import { encryptSecret, decryptSecret } from './sshService.js';
 
 const DEFAULT_REGION = process.env.AWS_REGION || 'us-east-1';
 
+export interface AwsCollectorResult<T> { data: T; source: 'live' | 'seed'; reason?: string; }
+
+export function awsCollectorMode(): 'live' | 'seed' {
+  return getAwsCredentials() ? 'live' : 'seed';
+}
+
 function getAwsCredentials() {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
@@ -130,7 +136,7 @@ const SEED_CLOUDTRAIL_EVENTS = [
 // EC2 API FUNCTIONS
 // ==========================================
 
-export async function getEc2Instances() {
+export async function getEc2InstancesWithSource(): Promise<AwsCollectorResult<any[]>> {
   const creds = getAwsCredentials();
   if (creds) {
     try {
@@ -162,14 +168,18 @@ export async function getEc2Instances() {
       });
 
       if (realInstances.length > 0) {
-        return realInstances;
+        return { data: realInstances, source: 'live' };
       }
     } catch (err) {
       console.warn('[AWS Integration] Real EC2 DescribeInstances error, falling back:', (err as Error).message);
     }
   }
 
-  return getCollectionData('awsEc2Instances', SEED_EC2_INSTANCES);
+  return { data: getCollectionData('awsEc2Instances', SEED_EC2_INSTANCES), source: 'seed', reason: creds ? 'AWS API returned no instances or request failed.' : 'AWS credentials are not configured.' };
+}
+
+export async function getEc2Instances() {
+  return (await getEc2InstancesWithSource()).data;
 }
 
 export async function executeEc2Action(instanceId: string, action: 'start' | 'stop' | 'reboot', executedBy: string = 'system') {

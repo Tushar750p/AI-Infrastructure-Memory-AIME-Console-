@@ -9,12 +9,14 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx tests/auth.test.ts && tsx tests/ssh.test.ts && tsx tests/docker.test.ts && tsx tests/k8s.test.ts && tsx tests/aws.test.ts",
+    "test": "tsx tests/auth.test.ts && tsx tests/authRateLimit.test.ts && tsx tests/ssh.test.ts && tsx tests/docker.test.ts && tsx tests/k8s.test.ts && tsx tests/aws.test.ts && tsx tests/tenantAccess.test.ts && tsx tests/infrastructureEvent.test.ts && tsx tests/awsCloudTrailCollector.test.ts && tsx tests/eventIntelligence.test.ts && tsx tests/awsStateChangeCollector.test.ts && tsx tests/kubernetesEventCollector.test.ts && tsx tests/linuxEventCollector.test.ts && tsx tests/incidentIntelligence.test.ts && tsx tests/failureRiskService.test.ts && tsx tests/infrastructureCollectorScheduler.test.ts && tsx tests/remediationService.test.ts && tsx tests/dockerRollbackAdapter.test.ts && tsx tests/dockerRollbackSnapshotService.test.ts && tsx tests/dockerAutomaticSnapshot.test.ts",
     "test:auth": "tsx tests/auth.test.ts",
     "test:ssh": "tsx tests/ssh.test.ts",
     "test:docker": "tsx tests/docker.test.ts",
     "test:k8s": "tsx tests/k8s.test.ts",
-    "test:aws": "tsx tests/aws.test.ts"
+    "test:aws": "tsx tests/aws.test.ts",
+    "test:rollback": "tsx tests/remediationService.test.ts && tsx tests/dockerRollbackAdapter.test.ts && tsx tests/dockerRollbackSnapshotService.test.ts && tsx tests/dockerAutomaticSnapshot.test.ts",
+    "test:rollback:snapshots": "tsx tests/dockerRollbackSnapshotService.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cloudtrail": "^3.1094.0",
@@ -43,7 +45,8 @@
     "react-dom": "^19.0.1",
     "recharts": "^3.9.2",
     "ssh2": "^1.17.0",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "redis": "^5.8.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

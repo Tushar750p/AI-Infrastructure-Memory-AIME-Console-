@@ -6,24 +6,140 @@ import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { initializeFirestoreDatabase, getCollectionData, setCollectionData, getDatabaseHealth } from './src/db/firestoreDb.js';
-import { authRouter } from './src/routes/authRoutes.js';
+import { authRouter, requireAuth } from './src/routes/authRoutes.js';
 import { serverRouter } from './src/routes/serverRoutes.js';
 import { dockerRouter } from './src/routes/dockerRoutes.js';
 import { k8sRouter } from './src/routes/k8sRoutes.js';
 import { awsRouter } from './src/routes/awsRoutes.js';
+import { awsAccountRouter } from './src/routes/awsAccountRoutes.js';
 import { memoryRouter } from './src/routes/memoryRoutes.js';
 import { storeMemoryItem } from './src/services/memoryEngine.js';
+import { startInfrastructureCollectorScheduler } from './src/services/infrastructureCollectorScheduler.js';
+import { flushDurableInfrastructureHistory } from './src/services/durableInfrastructureHistoryService.js';
 
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+
+// Baseline HTTP hardening. Keep this dependency-free for the current deployment.
+const trustProxy = process.env.AIME_TRUST_PROXY?.trim();
+if (trustProxy) {
+  const parsed = /^\\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy;
+  app.set('trust proxy', parsed);
+} else {
+  app.set('trust proxy', false);
+}
+
+if (process.env.NODE_ENV === 'production') {
+  // Production traffic is expected to terminate over HTTPS.
+  app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+    next();
+  });
+}
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+  // Enforce CSP in production. The frontend uses Google Fonts and React inline
+  // style attributes for dynamic progress bars, so those narrowly-scoped sources
+  // remain explicit rather than broadening script execution permissions.
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "form-action 'self'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "script-src 'self'",
+        "script-src-attr 'none'",
+        "connect-src 'self'",
+        "worker-src 'self' blob:",
+        "manifest-src 'self'",
+        "upgrade-insecure-requests",
+        "report-uri /api/security/csp-report",
+      ].join('; ')
+    );
+  }
+
+  next();
+});
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+const cspReportBuckets = new Map<string, { count: number; resetAt: number }>();
+const cspReportWindowMs = 60_000;
+const cspReportLimit = 30;
+
+app.post('/api/security/csp-report', express.json({ type: ['application/csp-report', 'application/reports+json'], limit: '64kb' }), (req, res) => {
+  // CSP reports are intentionally unauthenticated and side-effect free.
+  // Keep the endpoint bounded to prevent a report flood from filling logs.
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const bucket = cspReportBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    cspReportBuckets.set(key, { count: 1, resetAt: now + cspReportWindowMs });
+  } else {
+    bucket.count += 1;
+    if (bucket.count > cspReportLimit) return res.status(429).end();
+  }
+
+  const report = req.body;
+  if (!report || typeof report !== 'object') {
+    return res.status(204).end();
+  }
+
+  const serialized = JSON.stringify(report);
+  const boundedReport = serialized.length > 4000 ? serialized.slice(0, 4000) + '…' : serialized;
+  console.warn('[CSP Report]', boundedReport);
+  res.status(204).end();
+});
+
+const csrfSafeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+const configuredOrigins = (process.env.AIME_ALLOWED_ORIGINS || process.env.APP_URL || '')
+  .split(',')
+  .map(origin => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+if (process.env.NODE_ENV === 'production' && configuredOrigins.length === 0) {
+  throw new Error('Production requires APP_URL or AIME_ALLOWED_ORIGINS for cookie CSRF protection.');
+}
+
+app.use('/api', (req, res, next) => {
+  if (csrfSafeMethods.has(req.method)) return next();
+
+  // Bearer-token clients are not vulnerable to browser cookie CSRF.
+  const hasBearerAuth = req.headers.authorization?.startsWith('Bearer ');
+  if (hasBearerAuth) return next();
+
+  // Cookie-authenticated state changes require a trusted Origin.
+  const hasAccessCookie = Boolean(req.cookies?.accessToken);
+  if (!hasAccessCookie) return next();
+
+  const origin = req.headers.origin?.replace(/\/$/, '');
+  if (!origin || !configuredOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Forbidden: untrusted request origin' });
+  }
+
+  next();
+});
+
 app.use('/api/auth', authRouter);
+
+// Every non-auth API endpoint requires an authenticated session.
+// Individual routes can still apply stricter role/permission checks.
+app.use('/api', requireAuth);
 app.use('/api', serverRouter);
 app.use('/api', dockerRouter);
 app.use('/api', k8sRouter);
+app.use('/api', awsAccountRouter);
 app.use('/api', awsRouter);
 app.use('/api', memoryRouter);
 
@@ -2778,6 +2894,30 @@ async function start() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`AI Infrastructure Memory server listening on port ${PORT}`);
+    startInfrastructureCollectorScheduler();
+
+    if (process.env.AIME_DURABLE_STATE === 'true') {
+      const flushIntervalMs = Math.max(
+        Number(process.env.AIME_DURABLE_HISTORY_FLUSH_INTERVAL_MS || 10000),
+        5000
+      );
+      const durableFlushTimer = setInterval(() => {
+        void flushDurableInfrastructureHistory();
+      }, flushIntervalMs);
+      durableFlushTimer.unref?.();
+
+      const gracefulFlush = async (signal: string) => {
+        console.log(`[Durable History] Flushing pending records before ${signal} shutdown.`);
+        await flushDurableInfrastructureHistory();
+      };
+
+      process.once('SIGTERM', () => {
+        void gracefulFlush('SIGTERM').finally(() => process.exit(0));
+      });
+      process.once('SIGINT', () => {
+        void gracefulFlush('SIGINT').finally(() => process.exit(0));
+      });
+    }
   });
 
   // Bootstrap Cloud Firestore Database with seeds in background without blocking server startup

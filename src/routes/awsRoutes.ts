@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, AuthenticatedRequest } from './authRoutes.js';
+import { requireAuth, requirePermission, AuthenticatedRequest } from './authRoutes.js';
 import {
   getEc2Instances,
   executeEc2Action,
@@ -86,7 +86,7 @@ awsRouter.get('/aws/security', async (req: Request, res: Response) => {
 });
 
 // POST /api/aws/ec2/start/:id - Start EC2 Instance
-awsRouter.post('/aws/ec2/start/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+awsRouter.post('/aws/ec2/start/:id', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   try {
     const result = await executeEc2Action(id, 'start', req.user.email);
@@ -97,7 +97,7 @@ awsRouter.post('/aws/ec2/start/:id', requireAuth, async (req: AuthenticatedReque
 });
 
 // POST /api/aws/ec2/stop/:id - Stop EC2 Instance
-awsRouter.post('/aws/ec2/stop/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+awsRouter.post('/aws/ec2/stop/:id', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   try {
     const result = await executeEc2Action(id, 'stop', req.user.email);
@@ -108,7 +108,7 @@ awsRouter.post('/aws/ec2/stop/:id', requireAuth, async (req: AuthenticatedReques
 });
 
 // POST /api/aws/ec2/reboot/:id - Reboot EC2 Instance
-awsRouter.post('/aws/ec2/reboot/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+awsRouter.post('/aws/ec2/reboot/:id', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   try {
     const result = await executeEc2Action(id, 'reboot', req.user.email);

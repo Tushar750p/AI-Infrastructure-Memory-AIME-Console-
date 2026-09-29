@@ -1,10 +1,23 @@
+import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'aime-enterprise-jwt-secret-key-2026-production-secure';
-const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'aime-enterprise-refresh-secret-key-2026-production';
+function getRequiredSecret(name: 'JWT_SECRET' | 'REFRESH_TOKEN_SECRET'): string {
+  const value = process.env[name]?.trim();
+  if (value) return value;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`Missing required production secret: ${name}`);
+  }
+
+  // Development-only fallback. This must never be used in production.
+  return `aime-dev-${name.toLowerCase()}-${process.pid}`;
+}
+
+const JWT_SECRET = getRequiredSecret('JWT_SECRET');
+const REFRESH_SECRET = getRequiredSecret('REFRESH_TOKEN_SECRET');
 
 // Password complexity regex: at least 8 chars, at least 1 uppercase, 1 lowercase, 1 number
 export function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
@@ -34,8 +47,9 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   'Viewer': ['infra:read', 'logs:read']
 };
 
-// Seed default enterprise operators if not exist
+// Seed default enterprise operators only when explicitly enabled.
 export async function ensureSeedUsers() {
+  if (process.env.SEED_DEMO_DATA !== 'true') return;
   const users = getCollectionData('users', []);
   const now = new Date().toISOString();
 
@@ -127,13 +141,14 @@ export async function ensureSeedUsers() {
 }
 
 // Generate JWT Tokens
-export function generateTokens(user: any, sessionId: string) {
+export function generateTokens(user: any, sessionId: string, familyId = sessionId) {
   const payload = {
     userId: user.id,
     email: user.email,
     role: user.role || 'SRE',
     organizationId: user.organizationId || 'org-aime-01',
-    sessionId
+    sessionId,
+    familyId
   };
 
   const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
@@ -162,6 +177,7 @@ export function verifyRefreshToken(token: string) {
 
 // Helper to write audit logs
 export function logAuthAudit(action: string, userId: string, email: string, orgId: string, ip: string, details?: string) {
+  if (!orgId) throw new Error('organizationId is required for audit logging');
   const auditLogs = getCollectionData('auditLogs', []);
   const log = {
     id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,

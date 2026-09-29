@@ -1,8 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Durable server-side state is written/read through Firebase Admin SDK.
+    // Admin SDK bypasses Firestore Security Rules, while browser/client access
+    // is explicitly denied for these collections.
+    match /aimeDurableState/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /collectorCheckpoints/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /infrastructureEvents/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /timeMachineSnapshots/{document=**} {
+      allow read, write: if false;
+    }
+
+    // All application persistence is server-side through Firebase Admin SDK.
+    // Browser/client access is denied by default.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
