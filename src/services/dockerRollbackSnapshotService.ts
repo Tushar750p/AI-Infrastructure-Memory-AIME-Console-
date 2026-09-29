@@ -121,9 +121,13 @@ function pruneDockerRollbackCandidates(organizationId: string, hostId: string, c
       candidate.hostId === hostId &&
       candidate.containerId === containerId
     )
-    .sort((a: any, b: any) =>
-      new Date(b.candidateCreatedAt || 0).getTime() - new Date(a.candidateCreatedAt || 0).getTime()
-    )
+    .sort((a: any, b: any) => {
+      const timeDiff =
+        new Date(b.candidateCreatedAt || 0).getTime() -
+        new Date(a.candidateCreatedAt || 0).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return String(b.candidateEventId || '').localeCompare(String(a.candidateEventId || ''));
+    })
     .slice(0, retention);
   setCollectionData('dockerRollbackCandidates', [...scoped, ...candidates].slice(0, 50000));
 }
