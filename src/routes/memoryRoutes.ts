@@ -30,7 +30,7 @@ import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 import { executeDockerRemediation } from '../services/dockerRemediationAdapter.js';
 import { executeKubernetesRemediation } from '../services/kubernetesRemediationAdapter.js';
 import { executeAwsRemediation } from '../services/awsRemediationAdapter.js';
-import { getCollectorCheckpoints, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
+import { getCollectorCheckpoints, getCollectorHealth, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
 
 export const memoryRouter = Router();
 
@@ -126,6 +126,14 @@ memoryRouter.get('/infrastructure/remediation-audit', requirePermission('audit:r
   }
 });
 
+
+memoryRouter.get('/infrastructure/collector-health', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json({ success: true, ...getCollectorHealth(getTenantId(req)) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 memoryRouter.get('/infrastructure/collector-checkpoints', (req: AuthenticatedRequest, res: Response) => {
   try {
