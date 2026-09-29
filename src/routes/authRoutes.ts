@@ -202,6 +202,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       organizationName,
       isVerified: false,
       verificationTokenHash: hashAuthSecret(emailVerificationToken),
+      verificationTokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       mfaEnabled: false,
       mfaSecret: null,
       backupCodes: [],
@@ -600,6 +601,7 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
   setCollectionData('users', users);
 
   resetRecord.used = true;
+  delete resetRecord.token;
   setCollectionData('passwordResets', resets);
 
   logAuthAudit('PASSWORD_RESET_COMPLETE', user.id, user.email, user.organizationId, req.ip || '127.0.0.1');
@@ -617,7 +619,13 @@ authRouter.post('/verify-email', async (req: Request, res: Response) => {
   }
 
   const users = getCollectionData('users', []);
-  const user = users.find((u: any) => (u.verificationTokenHash ? u.verificationTokenHash === hashAuthSecret(token) : u.verificationToken === token));
+  const user = users.find((u: any) => {
+    const tokenMatches = u.verificationTokenHash
+      ? u.verificationTokenHash === hashAuthSecret(token)
+      : u.verificationToken === token;
+    const notExpired = !u.verificationTokenExpiresAt || new Date(u.verificationTokenExpiresAt).getTime() > Date.now();
+    return tokenMatches && notExpired;
+  });
 
   if (!user) {
     return res.status(400).json({ error: 'Invalid or expired verification token.' });
@@ -626,6 +634,7 @@ authRouter.post('/verify-email', async (req: Request, res: Response) => {
   user.isVerified = true;
   delete user.verificationToken;
   user.verificationTokenHash = null;
+  delete user.verificationTokenExpiresAt;
   user.updatedAt = new Date().toISOString();
   setCollectionData('users', users);
 
