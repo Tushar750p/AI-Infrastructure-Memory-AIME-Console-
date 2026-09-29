@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
+import { queueTimeMachineSnapshot } from './durableInfrastructureHistoryService.js';
 
 export interface TimeMachineSnapshot {
   id: string;
@@ -44,6 +45,8 @@ export function recordTimeMachineSnapshot(event: InfrastructureEvent): TimeMachi
     eventId: event.id,
     isLive: event.isLive
   };
+
+  queueTimeMachineSnapshot(snapshot);
 
   if (!snapshots.some((s: any) => s.id === snapshot.id)) {
     snapshots.unshift(snapshot);
