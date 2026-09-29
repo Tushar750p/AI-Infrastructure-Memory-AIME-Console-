@@ -162,7 +162,7 @@ export function preserveDockerRollbackCandidate(
     hostId,
     containerId,
     candidateEventId: eventId,
-    candidateCreatedAt: new Date().toISOString()
+    candidateCreatedAt: snapshot.capturedAt || new Date().toISOString()
   };
   setCollectionData(key, candidate);
   const candidates = getCollectionData('dockerRollbackCandidates', []);
