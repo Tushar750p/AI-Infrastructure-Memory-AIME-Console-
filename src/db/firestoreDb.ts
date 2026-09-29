@@ -1,3 +1,5 @@
+import { applicationDefault, cert, getApps as getAdminApps, initializeApp as initializeAdminApp } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, deleteDoc, setLogLevel } from 'firebase/firestore';
 import fs from 'fs';
@@ -5,6 +7,30 @@ import path from 'path';
 
 // Suppress noisy internal gRPC/write stream logs from Firestore SDK
 setLogLevel('silent');
+
+let adminDb: any = null;
+let adminInitialized = false;
+
+function getAdminDb(): any {
+  if (adminInitialized) return adminDb;
+  adminInitialized = true;
+  try {
+    const app = getAdminApps()[0] || initializeAdminApp(
+      process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY
+        ? { credential: cert({
+            projectId: process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+          }) }
+        : { credential: applicationDefault(), projectId: process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId }
+    );
+    adminDb = getAdminFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+    return adminDb;
+  } catch (error) {
+    console.warn('[Database] Admin Firestore unavailable; using local persistence:', error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
 
 // Read config
 let firebaseConfig: any = {};
