@@ -15,7 +15,7 @@ function dockerClient(host: any): Docker | null {
 }
 
 
-async function validateSnapshotCompatibility(docker: Docker, snapshot: any) {
+export async function validateSnapshotCompatibility(docker: Docker, snapshot: any) {
   if (!snapshot.image) throw new Error('Rollback snapshot has no Docker image.');
   try {
     await docker.getImage(snapshot.image).inspect();
@@ -69,8 +69,16 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
       await validateSnapshotCompatibility(docker, snapshot);
     }
     transitionRollback(organizationId, rollbackId, 'approved', 'executing');
-    const container = docker.getContainer(containerId);
-    const current = await container.inspect();
+    let container = docker.getContainer(containerId);
+    let current: any;
+    try {
+      current = await container.inspect();
+    } catch (error) {
+      const snapshotName = String(snapshot.name || '').replace(/^\\//, '');
+      if (!snapshotName) throw error;
+      container = docker.getContainer(snapshotName);
+      current = await container.inspect();
+    }
 
     if (rollback.rollbackType === 'docker_container_snapshot') {
       if (current.Config?.Image !== snapshot.image) {
@@ -104,17 +112,22 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
       throw new Error('Unsupported Docker rollback type.');
     }
 
-    const verified = await docker.getContainer(containerId).inspect().catch(async () => {
+    let verified: any;
+    let verifiedContainerId = containerId;
+    try {
+      verified = await docker.getContainer(containerId).inspect();
+    } catch {
       const byName = docker.getContainer(String(snapshot.name || '').replace(/^\//, ''));
-      return byName.inspect();
-    });
+      verified = await byName.inspect();
+      verifiedContainerId = String(verified.Id || verified.Id || containerId);
+    }
     if (Boolean(verified.State?.Running) !== Boolean(snapshot.running)) {
       throw new Error('Docker rollback verification failed: state does not match snapshot.');
     }
 
-    const verification = `Docker container ${containerId} restored from snapshot captured at ${snapshot.capturedAt}.`;
+    const verification = `Docker container ${verifiedContainerId} restored from snapshot captured at ${snapshot.capturedAt}.`;
     transitionRollback(organizationId, rollbackId, 'executing', 'verified', { verification });
-    return { success: true, rollbackId, resourceId: rollback.resourceId, verification };
+    return { success: true, rollbackId, resourceId: `${hostId}:${verifiedContainerId}`, verification };
   } catch (error) {
     const failureReason = error instanceof Error ? error.message : String(error);
     transitionRollback(organizationId, rollbackId, 'executing', 'failed', { failureReason });
