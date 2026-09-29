@@ -63,7 +63,7 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
   if (!docker) throw new Error('Docker host connection is unavailable.');
 
   const container = docker.getContainer(containerId);
-  const inspected = await container.inspect();
+  const inspected: any = await container.inspect();
   const snapshot = {
     organizationId,
     hostId,
