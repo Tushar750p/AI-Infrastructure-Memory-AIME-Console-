@@ -7,7 +7,7 @@ import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 const execAsync = promisify(exec);
 
 // Encryption Key for Stored Credentials (AES-256-GCM)
-const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY || 'aime-prod-ssh-secret-encryption-key-2026-32B';
+const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim() || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('Missing required production secret: CREDENTIALS_ENCRYPTION_KEY'); })() : 'aime-dev-credentials-key');
 const ALGORITHM = 'aes-256-gcm';
 
 export function encryptSecret(plainText: string): string {
