@@ -156,7 +156,7 @@ export async function collectDockerState(organizationId: string): Promise<Docker
         c.Id,
         {
           id: c.Id,
-          name: (c.Names?.[0] || '').replace(/^\\//, ''),
+          name: (c.Names?.[0] || '').replace(/^\//, ''),
           image: c.Image,
           state: c.State,
           status: c.Status
