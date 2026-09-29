@@ -44,6 +44,11 @@ export interface MemoryItem {
 
 const AI_MEMORY_COLLECTION = 'ai_memory';
 
+function scopeMemories(memories: MemoryItem[], organizationId?: string): MemoryItem[] {
+  if (!organizationId) return memories;
+  return memories.filter(m => m.organizationId === organizationId);
+}
+
 // Gemini client initialization
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -534,7 +539,7 @@ export async function storeMemoryItem(itemInput: Partial<MemoryItem>): Promise<M
     command: itemInput.command,
     exitCode: itemInput.exitCode,
     environment: itemInput.environment || 'Production',
-    organizationId: itemInput.organizationId || 'org-aime-01',
+    organizationId: itemInput.organizationId || (() => { throw new Error('organizationId is required to store memory.'); })(),
     createdBy: user,
     createdAt: now,
     updatedAt: now
@@ -554,6 +559,7 @@ export async function searchMemory(options: {
   memoryType?: string;
   severity?: string;
   serverId?: string;
+  organizationId?: string;
   limit?: number;
   threshold?: number;
 }): Promise<{
@@ -565,7 +571,7 @@ export async function searchMemory(options: {
     matchReason: string;
   }>;
 }> {
-  const memories: MemoryItem[] = getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES);
+  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES), options.organizationId);
   const queryText = options.query || '';
   const limit = options.limit || 10;
   const threshold = options.threshold !== undefined ? options.threshold : 0.15;
@@ -641,6 +647,7 @@ export function getTimeline(options?: {
   end?: string;
   type?: string;
   serverId?: string;
+  organizationId?: string;
   limit?: number;
 }): Array<{
   id: string;
@@ -654,7 +661,7 @@ export function getTimeline(options?: {
   details: string;
   memoryType: string;
 }> {
-  const memories: MemoryItem[] = getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES);
+  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES), options?.organizationId);
   const limit = options?.limit || 50;
 
   let filtered = memories;
@@ -695,7 +702,7 @@ export function getTimeline(options?: {
 /**
  * Perform Root Cause Analysis for a specific incident query or memory ID
  */
-export async function getRootCauseAnalysis(queryOrId: string): Promise<{
+export async function getRootCauseAnalysis(queryOrId: string, organizationId: string): Promise<{
   queryOrId: string;
   primaryIncident?: MemoryItem;
   detectedRootCause: string;
@@ -705,14 +712,14 @@ export async function getRootCauseAnalysis(queryOrId: string): Promise<{
   previousSuccessfulResolution: string;
   preventativeMeasures: string[];
 }> {
-  const memories: MemoryItem[] = getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES);
+  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES), organizationId);
 
   // Check if query is an exact memory ID
   let targetMem = memories.find(m => m.id === queryOrId);
 
   // If not ID, search semantically
   if (!targetMem) {
-    const searchRes = await searchMemory({ query: queryOrId, memoryType: 'Incident Memory', limit: 1 });
+    const searchRes = await searchMemory({ query: queryOrId, memoryType: 'Incident Memory', limit: 1, organizationId });
     if (searchRes.results.length > 0) {
       targetMem = searchRes.results[0].memory;
     }
@@ -726,7 +733,8 @@ export async function getRootCauseAnalysis(queryOrId: string): Promise<{
   // Search for related similar incidents
   const searchForRelated = await searchMemory({
     query: `${targetMem.eventType} ${targetMem.serverName} ${targetMem.tags ? targetMem.tags.join(' ') : ''}`,
-    limit: 5
+    limit: 5,
+    organizationId
   });
 
   const related = searchForRelated.results
@@ -753,7 +761,7 @@ export async function getRootCauseAnalysis(queryOrId: string): Promise<{
 /**
  * Generate AI Recommendations categorized by SRE domains
  */
-export function getAIRecommendations(): {
+export function getAIRecommendations(organizationId: string): {
   infrastructureOptimization: MemoryItem[];
   securityImprovements: MemoryItem[];
   costOptimization: MemoryItem[];
@@ -761,7 +769,7 @@ export function getAIRecommendations(): {
   capacityPlanning: MemoryItem[];
   totalRecommendations: number;
 } {
-  const memories: MemoryItem[] = getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES);
+  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES), organizationId);
 
   const recs = memories.filter(m =>
     m.memoryType === 'Recommendation Memory' ||
@@ -789,7 +797,7 @@ export function getAIRecommendations(): {
 /**
  * Generate Daily & Weekly Summary Reports
  */
-export function getSummaryReports(): {
+export function getSummaryReports(organizationId: string): {
   dailySummary: {
     date: string;
     totalEvents: number;
@@ -806,7 +814,7 @@ export function getSummaryReports(): {
     frequentlyUsedCommands: Array<{ command: string; count: number }>;
   };
 } {
-  const memories: MemoryItem[] = getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES);
+  const memories: MemoryItem[] = scopeMemories(getCollectionData(AI_MEMORY_COLLECTION, SEED_AI_MEMORIES), organizationId);
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
@@ -858,10 +866,11 @@ export function getSummaryReports(): {
 /**
  * Delete a memory item by ID
  */
-export function deleteMemoryItem(id: string): boolean {
+export function deleteMemoryItem(id: string, organizationId: string): boolean {
   let memories: MemoryItem[] = getCollectionData(AI_MEMORY_COLLECTION, []);
   const initialLength = memories.length;
-  memories = memories.filter(m => m.id !== id);
+  const before = memories.length;
+  memories = memories.filter(m => !(m.id === id && m.organizationId === organizationId));
   setCollectionData(AI_MEMORY_COLLECTION, memories);
-  return memories.length < initialLength;
+  return memories.length < initialLength && before > memories.length;
 }
