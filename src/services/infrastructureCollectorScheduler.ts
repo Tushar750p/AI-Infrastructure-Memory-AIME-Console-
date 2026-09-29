@@ -15,6 +15,7 @@ interface Checkpoint {
   lastStatus: 'never' | 'running' | 'success' | 'failed';
   lastEmitted: number;
   lastError?: string;
+  staleAfterMs?: number;
 }
 
 const INTERVAL_MS = Math.max(Number(process.env.AIME_COLLECTOR_INTERVAL_MS || 60000), 30000);
@@ -40,7 +41,8 @@ function getCheckpoint(org: string, collector: CollectorName): Checkpoint {
     lastStartedAt: null,
     lastCompletedAt: null,
     lastStatus: 'never',
-    lastEmitted: 0
+    lastEmitted: 0,
+    staleAfterMs: INTERVAL_MS * 3
   });
 }
 
@@ -61,7 +63,8 @@ async function runOne(org: string, collector: CollectorName, fn: () => Promise<a
       lastCompletedAt: new Date().toISOString(),
       lastStatus: 'success',
       lastEmitted: emitted,
-      lastError: result?.reason
+      lastError: result?.reason,
+      staleAfterMs: INTERVAL_MS * 3
     });
   } catch (error) {
     saveCheckpoint({
@@ -69,7 +72,8 @@ async function runOne(org: string, collector: CollectorName, fn: () => Promise<a
       lastCompletedAt: new Date().toISOString(),
       lastStatus: 'failed',
       lastEmitted: 0,
-      lastError: error instanceof Error ? error.message : String(error)
+      lastError: error instanceof Error ? error.message : String(error),
+      staleAfterMs: INTERVAL_MS * 3
     });
   }
 }
@@ -112,7 +116,12 @@ export function getCollectorCheckpoints(organizationId: string) {
     'docker-events', 'docker-state',
     'linux-events'
   ];
-  return collectors.map(name => getCheckpoint(organizationId, name));
+  const now = Date.now();
+  return collectors.map(name => {
+    const checkpoint = getCheckpoint(organizationId, name);
+    const last = checkpoint.lastCompletedAt ? new Date(checkpoint.lastCompletedAt).getTime() : 0;
+    return { ...checkpoint, stale: !last || now - last > (checkpoint.staleAfterMs || INTERVAL_MS * 3) };
+  });
 }
 
 export function startInfrastructureCollectorScheduler() {
