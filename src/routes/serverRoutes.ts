@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, AuthenticatedRequest } from './authRoutes.js';
+import { requireAuth, requirePermission, AuthenticatedRequest } from './authRoutes.js';
 import {
   getSshSession,
   executeCommand,
@@ -53,7 +53,7 @@ serverRouter.get('/servers/:id', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/servers - Register new Linux infrastructure server
-serverRouter.post('/servers', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/servers', requirePermission('infra:write'), (req: AuthenticatedRequest, res: Response) => {
   const { name, hostname, ip, port, username, authMethod, password, privateKey, passphrase, environment, tags } = req.body;
 
   if (!name || !ip) {
@@ -114,7 +114,7 @@ serverRouter.post('/servers', requireAuth, (req: AuthenticatedRequest, res: Resp
 });
 
 // PUT /api/servers/:id - Update server details
-serverRouter.put('/servers/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+serverRouter.put('/servers/:id', requirePermission('infra:write'), (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const servers = getCollectionData('servers', []);
   const server = findTenantRecord(servers, getTenantId(req), (s: any) => s.id === id);
@@ -142,7 +142,7 @@ serverRouter.put('/servers/:id', requireAuth, (req: AuthenticatedRequest, res: R
 });
 
 // DELETE /api/servers/:id - Delete server
-serverRouter.delete('/servers/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+serverRouter.delete('/servers/:id', requirePermission('infra:delete'), (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   let servers = getCollectionData('servers', []);
   const exists = Boolean(findTenantRecord(servers, getTenantId(req), (s: any) => s.id === id));
@@ -162,7 +162,7 @@ serverRouter.delete('/servers/:id', requireAuth, (req: AuthenticatedRequest, res
 // ==========================================
 
 // POST /api/ssh/connect - Test / Initiate SSH connection
-serverRouter.post('/ssh/connect', async (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/ssh/connect', requirePermission('infra:read'), async (req: AuthenticatedRequest, res: Response) => {
   const { serverId } = req.body;
   if (!serverId) {
     return res.status(400).json({ error: 'serverId is required.' });
@@ -184,7 +184,7 @@ serverRouter.post('/ssh/connect', async (req: AuthenticatedRequest, res: Respons
 });
 
 // POST /api/ssh/disconnect - Terminate SSH connection
-serverRouter.post('/ssh/disconnect', (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/ssh/disconnect', requirePermission('infra:read'), (req: AuthenticatedRequest, res: Response) => {
   const { serverId } = req.body;
   if (!serverId || !authorizedServer(req, serverId)) return res.status(404).json({ error: 'Server not found.' });
   res.json({ status: 'DISCONNECTED', message: `SSH session for server ${serverId} terminated.` });
@@ -292,7 +292,7 @@ serverRouter.get('/system/logs', async (req: AuthenticatedRequest, res: Response
 });
 
 // POST /api/system/command - Execute command on server
-serverRouter.post('/system/command', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/system/command', requirePermission('cmd:execute'), async (req: AuthenticatedRequest, res: Response) => {
   const { serverId, command } = req.body;
 
   if (!serverId || !command) {
@@ -329,7 +329,7 @@ serverRouter.get('/system/files', async (req: AuthenticatedRequest, res: Respons
 });
 
 // POST /api/system/upload - File upload endpoint stub
-serverRouter.post('/system/upload', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/system/upload', requirePermission('cmd:execute'), async (req: AuthenticatedRequest, res: Response) => {
   const { serverId, targetPath, fileContent } = req.body;
   if (!serverId || !targetPath) {
     return res.status(400).json({ error: 'serverId and targetPath are required.' });
