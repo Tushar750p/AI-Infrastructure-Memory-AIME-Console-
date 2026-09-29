@@ -60,6 +60,20 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
+export function hasPermission(user: any, permission: string): boolean {
+  const permissions = ROLE_PERMISSIONS[user?.role || ''] || [];
+  return permissions.includes('*') || permissions.includes(permission);
+}
+
+export function requirePermission(permission: string) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !hasPermission(req.user, permission)) {
+      return res.status(403).json({ error: `Forbidden: missing permission ${permission}` });
+    }
+    next();
+  };
+}
+
 // 1. REGISTER
 authRouter.post('/register', async (req: Request, res: Response) => {
   try {
