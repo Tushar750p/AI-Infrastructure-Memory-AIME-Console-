@@ -33,7 +33,7 @@ import { executeKubernetesRemediation } from '../services/kubernetesRemediationA
 import { executeAwsRemediation } from '../services/awsRemediationAdapter.js';
 import { executeDockerRollback } from '../services/dockerRollbackAdapter.js';
 import { captureDockerRollbackSnapshot, listDockerRollbackCandidates } from '../services/dockerRollbackSnapshotService.js';
-import { getCollectorCheckpoints, getCollectorHealth, getDurableCollectorCheckpoints, getDurableCollectorHealth, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
+import { getDurableCollectorCheckpoints, getDurableCollectorHealth, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
 
 export const memoryRouter = Router();
 
