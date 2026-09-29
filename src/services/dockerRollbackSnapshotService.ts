@@ -1,6 +1,42 @@
 import Docker from 'dockerode';
 import fs from 'fs';
+import crypto from 'crypto';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { encryptSecret, decryptSecret } from './sshService.js';
+
+const SECRET_ENV_PATTERN = /(^|_)(PASSWORD|PASS|TOKEN|SECRET|KEY|PRIVATE|CREDENTIAL|APIKEY|API_KEY|AUTH)(_|$)/i;
+
+function protectEnv(env: string[]) {
+  return env.map((entry) => {
+    const separator = entry.indexOf('=');
+    if (separator <= 0) return entry;
+    const name = entry.slice(0, separator);
+    const value = entry.slice(separator + 1);
+    return SECRET_ENV_PATTERN.test(name) ? `${name}=__AIME_ENCRYPTED__${encryptSecret(value)}` : entry;
+  });
+}
+
+export function restoreProtectedEnv(env: string[] = []) {
+  return env.map((entry) => {
+    const marker = '=__AIME_ENCRYPTED__';
+    const index = entry.indexOf(marker);
+    if (index < 0) return entry;
+    const name = entry.slice(0, index);
+    const encrypted = entry.slice(index + marker.length);
+    return `${name}=${decryptSecret(encrypted)}`;
+  });
+}
+
+function snapshotHash(snapshot: Record<string, any>) {
+  const { integrityHash, ...unsigned } = snapshot;
+  return crypto.createHash('sha256').update(JSON.stringify(unsigned)).digest('hex');
+}
+
+export function verifyDockerRollbackSnapshot(snapshot: any) {
+  if (!snapshot?.integrityHash) throw new Error('Rollback snapshot has no integrity hash.');
+  if (snapshotHash(snapshot) !== snapshot.integrityHash) throw new Error('Rollback snapshot integrity verification failed.');
+  return true;
+}
 
 function dockerClient(host: any): Docker | null {
   if (host.socketPath && fs.existsSync(host.socketPath)) return new Docker({ socketPath: host.socketPath });
@@ -32,7 +68,7 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
     image: inspected.Config?.Image || '',
     running: Boolean(inspected.State?.Running),
     name: inspected.Name || containerId,
-    env: inspected.Config?.Env || [],
+    env: protectEnv(inspected.Config?.Env || []),
     cmd: inspected.Config?.Cmd || [],
     entrypoint: inspected.Config?.Entrypoint || [],
     workingDir: inspected.Config?.WorkingDir || '',
@@ -42,8 +78,10 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
     portBindings: inspected.HostConfig?.PortBindings || {},
     networkMode: inspected.HostConfig?.NetworkMode || '',
     restartPolicy: inspected.HostConfig?.RestartPolicy || {},
-    privileged: Boolean(inspected.HostConfig?.Privileged)
+    privileged: Boolean(inspected.HostConfig?.Privileged),
+    schemaVersion: 2
   };
+  snapshot.integrityHash = snapshotHash(snapshot);
 
   setCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), snapshot);
   return snapshot;
