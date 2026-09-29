@@ -644,7 +644,7 @@ authRouter.post('/verify-email', async (req: Request, res: Response) => {
 });
 
 // 8. MFA SETUP
-authRouter.post('/mfa/setup', requirePermission('users:manage'), (req: AuthenticatedRequest, res: Response) => {
+authRouter.post('/mfa/setup', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
   const mfaSecret = base32Encode(crypto.randomBytes(20));
   const backupCodes = Array.from({ length: 6 }, () => crypto.randomBytes(4).toString('hex').toUpperCase());
@@ -662,7 +662,7 @@ authRouter.post('/mfa/setup', requirePermission('users:manage'), (req: Authentic
 });
 
 // 9. MFA VERIFY / ENABLE
-authRouter.post('/mfa/verify', requirePermission('users:manage'), (req: AuthenticatedRequest, res: Response) => {
+authRouter.post('/mfa/verify', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const { code } = req.body;
   const users = getCollectionData('users', []);
   const user = users.find((u: any) => u.id === req.user.id);
@@ -715,7 +715,7 @@ authRouter.get('/profile', requireAuth, (req: AuthenticatedRequest, res: Respons
 });
 
 // 11. UPDATE PROFILE
-authRouter.put('/profile', requirePermission('users:manage'), (req: AuthenticatedRequest, res: Response) => {
+authRouter.put('/profile', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const users = getCollectionData('users', []);
   const user = users.find((u: any) => u.id === req.user.id);
 
