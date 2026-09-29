@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
-import { loadDurableHistory } from './durableInfrastructureHistoryService.js';
 
 export interface EventFingerprint {
   fingerprint: string;
@@ -65,15 +64,20 @@ function severityRank(s: InfrastructureEvent['severity']): number {
   return ({ healthy: 0, info: 1, warning: 2, critical: 3 } as any)[s] ?? 1;
 }
 
-function correlateEvents(events: InfrastructureEvent[], organizationId: string, windowMinutes: number): CorrelatedEventGroup[] {
-  const sorted = events
-    .filter(e => e.organizationId === organizationId)
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+export function correlateInfrastructureEvents(
+  organizationId: string,
+  windowMinutes = 15
+): CorrelatedEventGroup[] {
+  const events = getCollectionData('infrastructureEvents', [])
+    .filter((e: InfrastructureEvent) => e.organizationId === organizationId)
+    .sort((a: InfrastructureEvent, b: InfrastructureEvent) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
 
   const windowMs = windowMinutes * 60 * 1000;
   const groups: CorrelatedEventGroup[] = [];
 
-  for (const event of sorted) {
+  for (const event of events) {
     const ts = new Date(event.timestamp).getTime();
     const candidates = groups.filter(g =>
       ts - new Date(g.lastSeen).getTime() <= windowMs &&
@@ -116,25 +120,4 @@ function correlateEvents(events: InfrastructureEvent[], organizationId: string, 
   }
 
   return groups.filter(g => g.eventIds.length > 1);
-}
-
-export function correlateInfrastructureEvents(
-  organizationId: string,
-  windowMinutes = 15
-): CorrelatedEventGroup[] {
-  return correlateEvents(
-    getCollectionData('infrastructureEvents', [])
-      .filter((e: InfrastructureEvent) => e.organizationId === organizationId),
-    organizationId,
-    windowMinutes
-  );
-}
-
-export async function correlateDurableInfrastructureEvents(
-  organizationId: string,
-  windowMinutes = 15,
-  limit = 1000
-): Promise<CorrelatedEventGroup[]> {
-  const history = await loadDurableHistory(organizationId, limit);
-  return correlateEvents(history.events, organizationId, windowMinutes);
 }
