@@ -154,6 +154,9 @@ export interface RollbackAction {
 function rollbackId() { return 'rollback-' + crypto.randomUUID(); }
 
 export function proposeRollback(input: Omit<RollbackAction, 'id' | 'status' | 'createdAt'>): RollbackAction {
+  if (!input.organizationId || !input.resourceId || !input.rollbackType || !input.proposedBy) {
+    throw new Error('organizationId, resourceId, rollbackType and proposedBy are required.');
+  }
   const action: RollbackAction = { ...input, id: rollbackId(), status: 'proposed', createdAt: new Date().toISOString() };
   const rollbacks = getCollectionData('rollbackActions', []);
   rollbacks.unshift(action);
