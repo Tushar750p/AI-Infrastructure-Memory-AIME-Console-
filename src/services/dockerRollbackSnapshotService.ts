@@ -83,7 +83,22 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
     networkMode: inspected.HostConfig?.NetworkMode || '',
     restartPolicy: inspected.HostConfig?.RestartPolicy || {},
     privileged: Boolean(inspected.HostConfig?.Privileged),
-    schemaVersion: 2
+    user: inspected.Config?.User || '',
+    healthcheck: inspected.Config?.Healthcheck || null,
+    stopSignal: inspected.Config?.StopSignal || '',
+    stopTimeout: inspected.Config?.StopTimeout ?? null,
+    tty: Boolean(inspected.Config?.Tty),
+    openStdin: Boolean(inspected.Config?.OpenStdin),
+    networkSettings: inspected.NetworkSettings?.Networks || {},
+    devices: inspected.HostConfig?.Devices || [],
+    capabilities: {
+      capAdd: inspected.HostConfig?.CapAdd || [],
+      capDrop: inspected.HostConfig?.CapDrop || []
+    },
+    securityOpt: inspected.HostConfig?.SecurityOpt || [],
+    init: Boolean(inspected.HostConfig?.Init),
+    readOnlyRootfs: Boolean(inspected.HostConfig?.ReadonlyRootfs),
+    schemaVersion: 3
   };
   snapshot.integrityHash = snapshotHash(snapshot);
 
