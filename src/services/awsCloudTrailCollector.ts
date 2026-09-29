@@ -48,13 +48,24 @@ export async function collectAwsCloudTrailEvents(
         sessionToken: creds.sessionToken
       }
     });
-    const response = await client.send(new LookupEventsCommand({
-      MaxResults: Math.min(Math.max(options.maxResults || 50, 1), 50),
-      StartTime: options.startTime,
-      EndTime: options.endTime
-    }));
+    const pageSize = Math.min(Math.max(options.maxResults || 50, 1), 50);
+    const maxPages = Math.min(Math.max(Number(process.env.AIME_CLOUDTRAIL_MAX_PAGES || 10), 1), 100);
+    const rawEvents: any[] = [];
+    let nextToken: string | undefined;
 
-    const events = (response.Events || []).map((e: any) => {
+    for (let page = 0; page < maxPages; page += 1) {
+      const response = await client.send(new LookupEventsCommand({
+        MaxResults: pageSize,
+        StartTime: options.startTime,
+        EndTime: options.endTime,
+        NextToken: nextToken
+      }));
+      rawEvents.push(...(response.Events || []));
+      nextToken = response.NextToken;
+      if (!nextToken) break;
+    }
+
+    const events = rawEvents.map((e: any) => {
       const resource = e.Resources?.[0];
       const resourceId = resource?.ResourceName || e.EventId || 'unknown';
       return createInfrastructureEvent({
@@ -80,7 +91,7 @@ export async function collectAwsCloudTrailEvents(
         isLive: true
       });
     });
-    return { events, source: 'live' as const };
+    return { events, source: 'live' as const, pagesFetched: Math.min(maxPages, Math.max(1, Math.ceil(rawEvents.length / pageSize))), truncated: Boolean(nextToken) };
   } catch (error: any) {
     return { events: [] as InfrastructureEvent[], source: 'live' as const, reason: error?.message || 'CloudTrail request failed.' };
   }
