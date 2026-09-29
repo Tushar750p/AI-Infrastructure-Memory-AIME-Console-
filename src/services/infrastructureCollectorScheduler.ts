@@ -1,5 +1,6 @@
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getDurableCollectorCheckpoint, setDurableCollectorCheckpoint } from './durableCollectorCheckpointService.js';
+import { acquireCollectorLock, releaseCollectorLock } from './collectorLockService.js';
 import { ingestAwsCloudTrailEvents } from './awsCloudTrailCollector.js';
 import { collectAwsStateChanges } from './awsStateChangeCollector.js';
 import { collectKubernetesEvents, collectKubernetesState } from './kubernetesEventCollector.js';
@@ -102,15 +103,20 @@ async function runCollectorsForTenant(org: string) {
 
 export async function runInfrastructureCollectors() {
   if (running) return { skipped: true, reason: 'Collector cycle already running.' };
-  running = true;
 
+  const lock = await acquireCollectorLock('all');
+  if (!lock) return { skipped: true, reason: 'Collector cycle lease is already held by another instance.' };
+
+  running = true;
   try {
-    for (const org of organizations()) {
+    const orgs = organizations();
+    for (const org of orgs) {
       await runCollectorsForTenant(org);
     }
-    return { skipped: false, organizations: organizations().length };
+    return { skipped: false, organizations: orgs.length };
   } finally {
     running = false;
+    await releaseCollectorLock(lock);
   }
 }
 
