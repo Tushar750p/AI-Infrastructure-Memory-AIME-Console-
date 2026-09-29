@@ -608,7 +608,9 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
 });
 
 // 7. VERIFY EMAIL
-authRouter.post('/verify-email', (req: Request, res: Response) => {
+authRouter.post('/verify-email', async (req: Request, res: Response) => {
+  const rate = await consumeAuthRateLimit({ key: `verify-email:ip:${req.ip || req.socket.remoteAddress || 'unknown'}`, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many email verification attempts. Please try again later.' });
   const { token } = req.body;
   if (!token) {
     return res.status(400).json({ error: 'Verification token is required.' });
