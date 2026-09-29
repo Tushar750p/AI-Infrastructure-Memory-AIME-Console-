@@ -71,6 +71,44 @@ memoryRouter.post('/infrastructure/remediations/:id/execute', requirePermission(
   }
 });
 
+memoryRouter.post('/infrastructure/rollbacks', requirePermission('infra:write'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rollback = proposeRollback({
+      organizationId: getTenantId(req),
+      remediationId: String(req.body?.remediationId || ''),
+      resourceId: String(req.body?.resourceId || ''),
+      rollbackType: String(req.body?.rollbackType || ''),
+      description: String(req.body?.description || ''),
+      reason: String(req.body?.reason || ''),
+      status: 'proposed',
+      proposedBy: req.user.id,
+      evidenceEventIds: Array.isArray(req.body?.evidenceEventIds) ? req.body.evidenceEventIds : []
+    });
+    if (!rollback.remediationId || !rollback.resourceId || !rollback.rollbackType) {
+      return res.status(400).json({ success: false, error: 'remediationId, resourceId and rollbackType are required.' });
+    }
+    res.status(201).json({ success: true, rollback });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/rollbacks/:id/approve', requirePermission('infra:deploy'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rollback = approveRollback(getTenantId(req), req.params.id, req.user.id);
+    if (!rollback) return res.status(404).json({ success: false, error: 'Rollback not found.' });
+    res.json({ success: true, rollback });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.get('/infrastructure/rollbacks/:id', requirePermission('infra:read'), (req: AuthenticatedRequest, res: Response) => {
+  const rollback = getRollback(getTenantId(req), req.params.id);
+  if (!rollback) return res.status(404).json({ success: false, error: 'Rollback not found.' });
+  res.json({ success: true, rollback });
+});
+
 memoryRouter.get('/infrastructure/remediations', (req: AuthenticatedRequest, res: Response) => {
   try {
     res.json({ success: true, remediations: listRemediations(getTenantId(req)) });
