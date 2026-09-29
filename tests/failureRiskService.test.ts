@@ -28,7 +28,7 @@ async function run() {
   const all = getCollectionData('infrastructureEvents', []);
   setCollectionData('infrastructureEvents', [...events, ...all]);
 
-  const signals = await calculateFailureRisk(org, 24);
+  const signals = calculateFailureRisk(org, 24);
   assert(signals.length >= 1, 'Repeated infrastructure instability creates a risk signal');
   assert(signals[0].riskScore >= 40, 'Risk score crosses the actionable threshold');
   assert(signals[0].evidenceEventIds.length >= 3, 'Risk signal retains event evidence');
