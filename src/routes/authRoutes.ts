@@ -370,7 +370,6 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     refreshTokens.push({
       id: `rt-${Date.now()}`,
       userId: user.id,
-      token: refreshToken,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       familyId
@@ -457,6 +456,13 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
   );
   if (!storedRefresh) {
     return res.status(401).json({ error: 'Refresh token has been revoked or expired' });
+  }
+
+  // Migrate legacy plaintext refresh-token records to hashed storage on successful use.
+  if (!storedRefresh.tokenHash && storedRefresh.token === refreshToken) {
+    storedRefresh.tokenHash = hashRefreshToken(refreshToken);
+    delete storedRefresh.token;
+    setCollectionData('refreshTokens', refreshTokens);
   }
 
   if (storedRefresh.revokedAt) {
