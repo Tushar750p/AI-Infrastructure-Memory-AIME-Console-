@@ -32,24 +32,46 @@ export function encryptSecret(plainText: string): string {
 export function decryptSecret(cipherText: string): string {
   if (!cipherText) return '';
   const parts = cipherText.split(':');
-  if (parts.length !== 4 || parts[0] !== 'v1') {
-    throw new Error('Invalid encrypted secret format.');
+  if (parts.length === 4 && parts[0] === 'v1') {
+    const [, ivHex, authTagHex, encryptedHex] = parts;
+    if (!/^[0-9a-f]+$/i.test(ivHex) || ivHex.length !== IV_BYTES * 2 ||
+        !/^[0-9a-f]+$/i.test(authTagHex) || authTagHex.length !== 32 ||
+        !/^[0-9a-f]+$/i.test(encryptedHex) || encryptedHex.length === 0) {
+      throw new Error('Invalid encrypted secret payload.');
+    }
+    try {
+      const decipher = crypto.createDecipheriv(ALGORITHM, encryptionKey(), Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+      return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
+    } catch {
+      throw new Error('Encrypted secret authentication failed.');
+    }
   }
 
-  const [, ivHex, authTagHex, encryptedHex] = parts;
-  if (!/^[0-9a-f]+$/i.test(ivHex) || ivHex.length !== IV_BYTES * 2 ||
-      !/^[0-9a-f]+$/i.test(authTagHex) || authTagHex.length !== 32 ||
-      !/^[0-9a-f]+$/i.test(encryptedHex) || encryptedHex.length === 0) {
-    throw new Error('Invalid encrypted secret payload.');
+  // Legacy v0 compatibility: older AIME builds used iv:tag:ciphertext with
+  // the original scrypt salt. This path is read-only compatibility; all new
+  // writes use v1 above.
+  if (parts.length === 3) {
+    const [ivHex, authTagHex, encryptedHex] = parts;
+    if (!/^[0-9a-f]+$/i.test(ivHex) || ivHex.length !== IV_BYTES * 2 ||
+        !/^[0-9a-f]+$/i.test(authTagHex) || authTagHex.length !== 32 ||
+        !/^[0-9a-f]+$/i.test(encryptedHex) || encryptedHex.length === 0) {
+      throw new Error('Invalid legacy encrypted secret payload.');
+    }
+    try {
+      const configured = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim();
+      const secret = configured || (process.env.NODE_ENV === 'production' ? '' : 'aime-dev-credentials-key');
+      if (!secret) throw new Error('Missing production encryption key.');
+      const legacyKey = crypto.scryptSync(secret, 'salt', KEY_BYTES);
+      const decipher = crypto.createDecipheriv(ALGORITHM, legacyKey, Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+      return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
+    } catch {
+      throw new Error('Legacy encrypted secret authentication failed.');
+    }
   }
 
-  try {
-    const decipher = crypto.createDecipheriv(ALGORITHM, encryptionKey(), Buffer.from(ivHex, 'hex'));
-    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
-    return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
-  } catch {
-    throw new Error('Encrypted secret authentication failed.');
-  }
+  throw new Error('Invalid encrypted secret format.');
 }
 
 // Session Pool Engine
