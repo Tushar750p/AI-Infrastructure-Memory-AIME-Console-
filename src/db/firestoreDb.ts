@@ -195,12 +195,11 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
   try {
     if (!quotaExceeded) {
       // Test connectivity with 2s timeout
-      const healthRef = doc(db, 'system_health', 'ping');
-      await withTimeout(setDoc(healthRef, {
-        status: 'ONLINE',
-        engine: 'Cloud Firestore Enterprise',
-        timestamp: new Date().toISOString(),
-        databaseId: firebaseConfig.firestoreDatabaseId || 'default'
+      const adminDb = getAdminDb();
+      if (!adminDb) throw new Error('Admin Firestore unavailable');
+      await withTimeout(adminDb.collection('system_health').doc('ping').set({
+        status: 'ONLINE', engine: 'Cloud Firestore Enterprise',
+        timestamp: new Date().toISOString(), databaseId: firebaseConfig.firestoreDatabaseId || 'default'
       }), 2000, 'Firestore ping timeout');
 
       lastCheckLatencyMs = Date.now() - start;
@@ -218,8 +217,9 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
 
       if (!quotaExceeded) {
         try {
-          const collRef = collection(db, collName);
-          const snapshot = await withTimeout(getDocs(collRef), 2000, `Firestore getDocs timeout for ${collName}`);
+          const adminDb = getAdminDb();
+          if (!adminDb) throw new Error('Admin Firestore unavailable');
+          const snapshot = await withTimeout(adminDb.collection(collName).get(), 2000, `Firestore getDocs timeout for ${collName}`);
 
           if (!snapshot.empty) {
             if (Array.isArray(seedData)) {
@@ -242,7 +242,7 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
                 if (quotaExceeded) break;
                 try {
                   const docId = item.id || `seed-${Math.random().toString(36).substring(2, 9)}`;
-                  await setDoc(doc(db, collName, String(docId)), sanitizeForFirestore(item));
+                  await adminDb.collection(collName).doc(String(docId)).set({ ...sanitizeForFirestore(item), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
                 } catch (itemErr: any) {
                   const msg = String(itemErr?.message || itemErr).toLowerCase();
                   if (msg.includes('quota') || msg.includes('resource_exhausted') || msg.includes('resource-exhausted') || itemErr?.code === 'resource-exhausted') {
@@ -256,7 +256,7 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
               const enrichedSeed = enrichRecord(seedData, collName);
               storeCache[collName] = enrichedSeed;
               try {
-                await setDoc(doc(db, collName, 'config'), sanitizeForFirestore(enrichedSeed));
+                await adminDb.collection(collName).doc('config').set({ ...sanitizeForFirestore(enrichedSeed), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
               } catch (cfgErr: any) {
                 const msg = String(cfgErr?.message || cfgErr).toLowerCase();
                 if (msg.includes('quota') || msg.includes('resource_exhausted') || msg.includes('resource-exhausted') || cfgErr?.code === 'resource-exhausted') {
@@ -384,10 +384,10 @@ export async function getDatabaseHealth() {
   }
 
   try {
-    const healthRef = doc(db, 'system_health', 'ping');
-    await withTimeout(setDoc(healthRef, {
-      status: 'ONLINE',
-      timestamp: new Date().toISOString()
+    const adminDb = getAdminDb();
+    if (!adminDb) throw new Error('Admin Firestore unavailable');
+    await withTimeout(adminDb.collection('system_health').doc('ping').set({
+      status: 'ONLINE', timestamp: new Date().toISOString()
     }), 1500, 'Firestore ping timeout');
     lastCheckLatencyMs = Date.now() - start;
     dbConnected = true;
