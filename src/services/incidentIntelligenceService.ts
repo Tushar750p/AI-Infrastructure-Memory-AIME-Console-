@@ -1,3 +1,21 @@
+import { getCollectionData } from '../db/firestoreDb.js';
+import { InfrastructureEvent } from '../types/infrastructureEvent.js';
+import { correlateInfrastructureEvents, CorrelatedEventGroup } from './eventIntelligenceService.js';
+import { buildKnowledgeGraph } from './knowledgeGraphService.js';
+export interface IncidentEvidence{eventId:string;timestamp:string;source:string;resourceId:string;eventType:string;severity:InfrastructureEvent['severity'];relation:'preceding'|'same-window'|'following';evidenceScore:number;}
+export interface IncidentIntelligence{correlationId:string;severity:InfrastructureEvent['severity'];confidence:number;firstSeen:string;lastSeen:string;resources:string[];sources:string[];evidence:IncidentEvidence[];rootCauseCandidates:Array<{resourceId:string;source:string;eventType:string;reason:string;evidenceScore:number}>;}
+function scoreEvent(event:InfrastructureEvent,start:number,ids:string[]){let score=.35;if(event.severity==='critical')score+=.3;else if(event.severity==='warning')score+=.15;const ts=new Date(event.timestamp).getTime();if(ts<=start&&start-ts<=900000)score+=.25;if(ids.includes(event.resourceId))score+=.1;return Math.min(.99,score);}
+export function analyzeIncident(organizationId:string,correlationId:string):IncidentIntelligence|null{
+ const group:CorrelatedEventGroup|undefined=correlateInfrastructureEvents(organizationId,60).find(g=>g.correlationId===correlationId);if(!group)return null;
+ const events:InfrastructureEvent[]=getCollectionData('infrastructureEvents',[]).filter((e:InfrastructureEvent)=>e.organizationId===organizationId);
+ const start=new Date(group.firstSeen).getTime(),end=new Date(group.lastSeen).getTime();
+ const surrounding=events.filter(e=>{const ts=new Date(e.timestamp).getTime();return ts>=start-900000&&ts<=end+900000;}).sort((a,b)=>new Date(a.timestamp).getTime()-new Date(b.timestamp).getTime());
+ const evidence=surrounding.map(event=>{const ts=new Date(event.timestamp).getTime();return {eventId:event.id,timestamp:event.timestamp,source:event.source,resourceId:event.resourceId,eventType:event.eventType,severity:event.severity,relation:ts<start?'preceding':ts>end?'following':'same-window',evidenceScore:scoreEvent(event,start,group.resourceIds)} as IncidentEvidence;});
+ const rootCauseCandidates=surrounding.filter(e=>['configuration.changed','resource.updated','resource.state_changed','deployment.failed','command.executed','metric.threshold'].includes(e.eventType)).map(event=>({resourceId:event.resourceId,source:event.source,eventType:event.eventType,reason:event.eventType==='metric.threshold'?'Resource threshold was observed near the incident window.':event.eventType==='configuration.changed'?'A configuration change preceded or overlapped the incident.':event.eventType==='deployment.failed'?'A failed deployment occurred near the incident window.':'A state or operational change was recorded near the incident window.',evidenceScore:scoreEvent(event,start,group.resourceIds)})).sort((a,b)=>b.evidenceScore-a.evidenceScore).slice(0,10);
+ const graph=buildKnowledgeGraph(organizationId);const graphEvidence=graph.edges.filter(edge=>edge.organizationId===organizationId&&group.resourceIds.some(id=>edge.from.includes(id)||edge.to.includes(id)));
+ if(graphEvidence.length){for(const candidate of rootCauseCandidates)if(graphEvidence.some(edge=>edge.from.includes(candidate.resourceId)||edge.to.includes(candidate.resourceId)))candidate.evidenceScore=Math.min(.99,candidate.evidenceScore+.1);rootCauseCandidates.sort((a,b)=>b.evidenceScore-a.evidenceScore);}
+ return {correlationId,severity:group.severity,confidence:group.confidence,firstSeen:group.firstSeen,lastSeen:group.lastSeen,resources:group.resourceIds,sources:group.sources,evidence,rootCauseCandidates};
+}
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
 import { correlateDurableInfrastructureEvents, CorrelatedEventGroup } from './eventIntelligenceService.js';
 import { buildKnowledgeGraph } from './knowledgeGraphService.js';
@@ -45,7 +63,7 @@ function scoreEvent(event: InfrastructureEvent, incidentStart: number, resourceI
   return Math.min(0.99, score);
 }
 
-export async function analyzeIncident(
+export async function analyzeIncidentDurable(
   organizationId: string,
   correlationId: string
 ): Promise<IncidentIntelligence | null> {
