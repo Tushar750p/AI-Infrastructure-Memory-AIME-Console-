@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { proposeRemediation, approveRemediation, transitionRemediation } from '../src/services/remediationService.js';
+import { proposeRemediation, approveRemediation, transitionRemediation, proposeRollback } from '../src/services/remediationService.js';
 
 const base = {
   organizationId: 'org-rem-test',
