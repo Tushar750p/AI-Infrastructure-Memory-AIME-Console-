@@ -54,6 +54,24 @@ function saveToLocalDisk() {
   }
 }
 
+function normalizeCachedTenancy() {
+  const tenantCollections = new Set([
+    'servers', 'containers', 'k8sClusters', 'events', 'ai_memory', 'auditLogs',
+    'alerts', 'discovery', 'integrations', 'awsAccounts', 'deployments'
+  ]);
+
+  for (const collName of tenantCollections) {
+    const value = storeCache[collName];
+    if (Array.isArray(value)) {
+      storeCache[collName] = value.map(item =>
+        item && typeof item === 'object' && !item.organizationId
+          ? { ...item, organizationId: 'org-aime-01' }
+          : item
+      );
+    }
+  }
+}
+
 function loadFromLocalDisk(): boolean {
   try {
     if (fs.existsSync(STORE_FILE)) {
@@ -63,6 +81,7 @@ function loadFromLocalDisk(): boolean {
       if (storeCache['__meta__']?.quotaExceeded !== undefined) {
         quotaExceeded = storeCache['__meta__'].quotaExceeded;
       }
+      normalizeCachedTenancy();
       return true;
     }
   } catch (e) {
@@ -132,7 +151,9 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
   // Load or seed collections into cache immediately
   for (const [collName, seedData] of Object.entries(seedDataMap)) {
     if (storeCache[collName] === undefined) {
-      storeCache[collName] = seedData;
+      storeCache[collName] = Array.isArray(seedData)
+        ? seedData.map(item => enrichRecord(item, collName))
+        : enrichRecord(seedData, collName);
     }
   }
 
@@ -164,7 +185,9 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
     // Load or seed collections
     for (const [collName, seedData] of Object.entries(seedDataMap)) {
       if (storeCache[collName] === undefined) {
-        storeCache[collName] = seedData;
+        storeCache[collName] = Array.isArray(seedData)
+          ? seedData.map(item => enrichRecord(item, collName))
+          : enrichRecord(seedData, collName);
       }
 
       if (!quotaExceeded) {
@@ -244,9 +267,12 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
     // Ensure all seeds are loaded into cache and saved to disk
     for (const [collName, seedData] of Object.entries(seedDataMap)) {
       if (storeCache[collName] === undefined) {
-        storeCache[collName] = seedData;
+        storeCache[collName] = Array.isArray(seedData)
+          ? seedData.map(item => enrichRecord(item, collName))
+          : enrichRecord(seedData, collName);
       }
     }
+    normalizeCachedTenancy();
     saveToLocalDisk();
   }
 }
