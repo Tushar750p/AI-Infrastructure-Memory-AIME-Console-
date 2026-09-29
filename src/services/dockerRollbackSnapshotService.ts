@@ -141,7 +141,14 @@ export function preserveDockerRollbackCandidate(
 ) {
   verifyDockerRollbackSnapshot(snapshot);
   const key = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${eventId}`;
-  const candidate = { ...snapshot, candidateEventId: eventId, candidateCreatedAt: new Date().toISOString() };
+  const candidate = {
+    ...snapshot,
+    organizationId,
+    hostId,
+    containerId,
+    candidateEventId: eventId,
+    candidateCreatedAt: new Date().toISOString()
+  };
   setCollectionData(key, candidate);
   const candidates = getCollectionData('dockerRollbackCandidates', []);
   candidates.unshift(candidate);
