@@ -1,6 +1,7 @@
 import Docker from 'dockerode';
 import fs from 'fs';
-import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { getCollectionData } from '../db/firestoreDb.js';
+import { getDurableState, setDurableState } from './durableStateService.js';
 import { InfrastructureEvent, createInfrastructureEvent } from '../types/infrastructureEvent.js';
 import { ingestInfrastructureEvent } from './infrastructureEventService.js';
 import { captureDockerRollbackSnapshot, getLatestDockerRollbackSnapshot, preserveDockerRollbackCandidate } from './dockerRollbackSnapshotService.js';
@@ -162,7 +163,7 @@ export async function collectDockerState(organizationId: string): Promise<Docker
           status: c.Status
         }
       ]));
-      const previous = getCollectionData(snapshotKey(organizationId, host), {}) as Record<string, any>;
+      const previous = await getDurableState(snapshotKey(organizationId, host), {}) as Record<string, any>;
 
       for (const [id, after] of Object.entries(current)) {
         const latestSnapshot = getLatestDockerRollbackSnapshot(organizationId, host.id, id);
@@ -240,7 +241,7 @@ export async function collectDockerState(organizationId: string): Promise<Docker
         }
       }
 
-      setCollectionData(snapshotKey(organizationId, host), current);
+      await setDurableState(snapshotKey(organizationId, host), current);
     } catch (error) {
       console.warn(`[Docker Collector] State collection failed for ${host.name || host.id}:`, (error as Error).message);
     }
