@@ -186,3 +186,37 @@ export function stopInfrastructureCollectorScheduler() {
   clearInterval(timer);
   timer = null;
 }
+
+
+export async function getDurableCollectorCheckpoints(organizationId: string) {
+  const collectors: CollectorName[] = [
+    'aws-cloudtrail', 'aws-state',
+    'kubernetes-events', 'kubernetes-state',
+    'docker-events', 'docker-state',
+    'linux-events'
+  ];
+  const now = Date.now();
+  const checkpoints = [];
+  for (const name of collectors) {
+    const checkpoint = await getDurableCollectorCheckpoint(organizationId, name, getCheckpoint(organizationId, name));
+    const last = checkpoint.lastCompletedAt ? new Date(checkpoint.lastCompletedAt).getTime() : 0;
+    checkpoints.push({
+      ...checkpoint,
+      stale: !last || now - last > (checkpoint.staleAfterMs || INTERVAL_MS * 3)
+    });
+  }
+  return checkpoints;
+}
+
+export async function getDurableCollectorHealth(organizationId: string) {
+  const checkpoints = await getDurableCollectorCheckpoints(organizationId);
+  const failed = checkpoints.filter((c: any) => c.lastStatus === 'failed').length;
+  const stale = checkpoints.filter((c: any) => c.stale).length;
+  const truncated = checkpoints.filter((c: any) => c.lastTruncated).length;
+  const healthy = checkpoints.filter((c: any) => c.lastStatus === 'success' && !c.stale && !c.lastTruncated).length;
+  const status = failed > 0 ? 'failed' : stale > 0 || truncated > 0 ? 'degraded' : 'healthy';
+  return {
+    organizationId, status, healthy, stale, truncated, failed,
+    total: checkpoints.length, checkedAt: new Date().toISOString(), collectors: checkpoints
+  };
+}
