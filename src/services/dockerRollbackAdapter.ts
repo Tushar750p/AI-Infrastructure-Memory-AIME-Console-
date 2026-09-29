@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import fs from 'fs';
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getRollback, transitionRollback } from './remediationService.js';
-import { getDockerRollbackSnapshot, getDockerRollbackCandidate, decodeSnapshotEnv, verifyDockerRollbackSnapshot } from './dockerRollbackSnapshotService.js';
+import { getDockerRollbackSnapshot, getDockerRollbackCandidate, migrateLatestDockerRollbackSnapshot, decodeSnapshotEnv, verifyDockerRollbackSnapshot } from './dockerRollbackSnapshotService.js';
 
 function dockerClient(host: any): Docker | null {
   if (host.socketPath && fs.existsSync(host.socketPath)) return new Docker({ socketPath: host.socketPath });
@@ -85,7 +85,7 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
 
   const snapshot = rollback.targetSnapshotId
     ? getDockerRollbackCandidate(organizationId, hostId, containerId, rollback.targetSnapshotId)
-    : getDockerRollbackSnapshot(organizationId, hostId, containerId);
+    : migrateLatestDockerRollbackSnapshot(organizationId, hostId, containerId);
   if (!snapshot) throw new Error('No trusted Docker rollback snapshot exists for this tenant resource.');
   verifyDockerRollbackSnapshot(snapshot);
 
