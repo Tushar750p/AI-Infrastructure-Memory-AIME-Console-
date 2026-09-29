@@ -115,7 +115,8 @@ function pruneDockerRollbackCandidates(organizationId: string, hostId: string, c
     .filter((candidate: any) =>
       !(candidate.organizationId === organizationId && candidate.hostId === hostId && candidate.containerId === containerId)
     );
-  const scoped = getCollectionData('dockerRollbackCandidates', [])
+  const allCandidates = getCollectionData('dockerRollbackCandidates', []);
+  const scoped = allCandidates
     .filter((candidate: any) =>
       candidate.organizationId === organizationId &&
       candidate.hostId === hostId &&
@@ -127,9 +128,23 @@ function pruneDockerRollbackCandidates(organizationId: string, hostId: string, c
         new Date(a.candidateCreatedAt || 0).getTime();
       if (timeDiff !== 0) return timeDiff;
       return String(b.candidateEventId || '').localeCompare(String(a.candidateEventId || ''));
-    })
-    .slice(0, retention);
-  setCollectionData('dockerRollbackCandidates', [...scoped, ...candidates].slice(0, 50000));
+    });
+  const retained = scoped.slice(0, retention);
+  const retainedKeys = new Set(
+    retained.map((candidate: any) =>
+      `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${candidate.candidateEventId}`
+    )
+  );
+  for (const candidate of scoped.slice(retention)) {
+    const key = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${candidate.candidateEventId}`;
+    if (!retainedKeys.has(key)) setCollectionData(key, null);
+  }
+  const retainedSet = new Set(retained);
+  const remaining = allCandidates.filter((candidate: any) =>
+    !(candidate.organizationId === organizationId && candidate.hostId === hostId && candidate.containerId === containerId)
+    || retainedSet.has(candidate)
+  );
+  setCollectionData('dockerRollbackCandidates', remaining.slice(0, 50000));
 }
 
 export function preserveDockerRollbackCandidate(
