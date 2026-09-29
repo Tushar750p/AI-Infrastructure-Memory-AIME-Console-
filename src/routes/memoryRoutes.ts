@@ -337,7 +337,7 @@ memoryRouter.get('/infrastructure/events', async (req: AuthenticatedRequest, res
   }
 });
 
-memoryRouter.post('/infrastructure/collect/aws/cloudtrail', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/aws/cloudtrail', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = getTenantId(req);
     const minutes = Math.min(Math.max(parseInt(String(req.body?.minutes || '60'), 10) || 60, 1), 1440);
@@ -370,7 +370,7 @@ memoryRouter.get('/infrastructure/correlations', (req: AuthenticatedRequest, res
   }
 });
 
-memoryRouter.post('/infrastructure/collect/linux/events', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/linux/events', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await collectLinuxEvents(getTenantId(req));
     const ok = result.source === 'live';
@@ -380,7 +380,7 @@ memoryRouter.post('/infrastructure/collect/linux/events', async (req: Authentica
   }
 });
 
-memoryRouter.post('/infrastructure/collect/docker/events', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/docker/events', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await collectDockerEvents(getTenantId(req));
     const ok = result.source === 'live';
@@ -390,7 +390,7 @@ memoryRouter.post('/infrastructure/collect/docker/events', async (req: Authentic
   }
 });
 
-memoryRouter.post('/infrastructure/collect/docker/state', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/docker/state', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await collectDockerState(getTenantId(req));
     const ok = result.source === 'live';
@@ -400,7 +400,7 @@ memoryRouter.post('/infrastructure/collect/docker/state', async (req: Authentica
   }
 });
 
-memoryRouter.post('/infrastructure/collect/kubernetes/events', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/kubernetes/events', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await collectKubernetesEvents(getTenantId(req));
     const ok = result.source === 'live';
@@ -410,7 +410,7 @@ memoryRouter.post('/infrastructure/collect/kubernetes/events', async (req: Authe
   }
 });
 
-memoryRouter.post('/infrastructure/collect/kubernetes/state', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/kubernetes/state', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await collectKubernetesState(getTenantId(req));
     const ok = result.source === 'live';
@@ -420,7 +420,7 @@ memoryRouter.post('/infrastructure/collect/kubernetes/state', async (req: Authen
   }
 });
 
-memoryRouter.post('/infrastructure/collect/aws/state', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/collect/aws/state', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await collectAwsStateChanges(getTenantId(req));
     const ok = result.source === 'live';
@@ -430,7 +430,7 @@ memoryRouter.post('/infrastructure/collect/aws/state', async (req: Authenticated
   }
 });
 
-memoryRouter.post('/infrastructure/memory-sync', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/memory-sync', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const windowMinutes = Math.min(Math.max(parseInt(String(req.body?.windowMinutes || '15'), 10) || 15, 1), 120);
     const result = await syncCorrelatedEventsToMemory(getTenantId(req), windowMinutes);
@@ -612,7 +612,7 @@ memoryRouter.get('/memory/root-cause', async (req: AuthenticatedRequest, res: Re
 });
 
 // POST /api/memory/store - Store new AI Memory item
-memoryRouter.post('/memory/store', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/memory/store', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       memoryType,
@@ -680,7 +680,7 @@ memoryRouter.post('/memory/store', async (req: AuthenticatedRequest, res: Respon
 });
 
 // DELETE /api/memory/:id - Delete AI Memory item
-memoryRouter.delete('/memory/:id', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.delete('/memory/:id', requirePermission('infra:delete'), (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const success = deleteMemoryItem(id, getTenantId(req));
