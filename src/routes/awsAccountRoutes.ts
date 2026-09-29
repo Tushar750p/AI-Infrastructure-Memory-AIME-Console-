@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest } from './authRoutes.js';
+import { AuthenticatedRequest, requirePermission } from './authRoutes.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { getTenantId, tenantRecords } from '../services/tenantAccess.js';
 import { encryptSecret } from '../services/sshService.js';
