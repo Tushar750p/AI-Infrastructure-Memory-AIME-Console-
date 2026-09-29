@@ -9,7 +9,7 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx tests/auth.test.ts && tsx tests/ssh.test.ts && tsx tests/docker.test.ts && tsx tests/k8s.test.ts && tsx tests/aws.test.ts && tsx tests/tenantAccess.test.ts && tsx tests/infrastructureEvent.test.ts && tsx tests/awsCloudTrailCollector.test.ts && tsx tests/eventIntelligence.test.ts",
+    "test": "tsx tests/auth.test.ts && tsx tests/ssh.test.ts && tsx tests/docker.test.ts && tsx tests/k8s.test.ts && tsx tests/aws.test.ts && tsx tests/tenantAccess.test.ts && tsx tests/infrastructureEvent.test.ts && tsx tests/awsCloudTrailCollector.test.ts && tsx tests/eventIntelligence.test.ts && tsx tests/awsStateChangeCollector.test.ts",
     "test:auth": "tsx tests/auth.test.ts",
     "test:ssh": "tsx tests/ssh.test.ts",
     "test:docker": "tsx tests/docker.test.ts",
