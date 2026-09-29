@@ -22,7 +22,13 @@ dotenv.config();
 const app = express();
 
 // Baseline HTTP hardening. Keep this dependency-free for the current deployment.
-app.disable('x-powered-by');
+const trustProxy = process.env.AIME_TRUST_PROXY?.trim();
+if (trustProxy) {
+  const parsed = /^\\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy;
+  app.set('trust proxy', parsed);
+} else {
+  app.set('trust proxy', false);
+}
 
 if (process.env.NODE_ENV === 'production') {
   // Production traffic is expected to terminate over HTTPS.
