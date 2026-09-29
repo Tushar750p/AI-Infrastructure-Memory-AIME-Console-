@@ -1,4 +1,5 @@
-import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { getCollectionData } from '../db/firestoreDb.js';
+import { getDurableCollectorCheckpoint, setDurableCollectorCheckpoint } from './durableCollectorCheckpointService.js';
 import { ingestAwsCloudTrailEvents } from './awsCloudTrailCollector.js';
 import { collectAwsStateChanges } from './awsStateChangeCollector.js';
 import { collectKubernetesEvents, collectKubernetesState } from './kubernetesEventCollector.js';
@@ -53,15 +54,15 @@ function saveCheckpoint(cp: Checkpoint) {
 }
 
 async function runOne(org: string, collector: CollectorName, fn: () => Promise<any>) {
-  const previous = getCheckpoint(org, collector);
+  const previous = await getDurableCollectorCheckpoint(org, collector, getCheckpoint(org, collector));
   const started = new Date().toISOString();
-  saveCheckpoint({ ...previous, lastStartedAt: started, lastStatus: 'running', lastError: undefined });
+  await setDurableCollectorCheckpoint({ ...previous, lastStartedAt: started, lastStatus: 'running', lastError: undefined });
 
   try {
     const result = await fn();
     const emitted = Number(result?.ingested ?? result?.emitted ?? 0);
-    saveCheckpoint({
-      ...getCheckpoint(org, collector),
+    await setDurableCollectorCheckpoint({
+      ...await getDurableCollectorCheckpoint(org, collector, getCheckpoint(org, collector)),
       lastCompletedAt: new Date().toISOString(),
       lastStatus: 'success',
       lastEmitted: emitted,
@@ -71,8 +72,8 @@ async function runOne(org: string, collector: CollectorName, fn: () => Promise<a
       staleAfterMs: INTERVAL_MS * 3
     });
   } catch (error) {
-    saveCheckpoint({
-      ...getCheckpoint(org, collector),
+    await setDurableCollectorCheckpoint({
+      ...await getDurableCollectorCheckpoint(org, collector, getCheckpoint(org, collector)),
       lastCompletedAt: new Date().toISOString(),
       lastStatus: 'failed',
       lastEmitted: 0,
@@ -83,8 +84,8 @@ async function runOne(org: string, collector: CollectorName, fn: () => Promise<a
 }
 
 async function runCollectorsForTenant(org: string) {
-  await runOne(org, 'aws-cloudtrail', () => {
-    const previous = getCheckpoint(org, 'aws-cloudtrail');
+  await runOne(org, 'aws-cloudtrail', async () => {
+    const previous = await getDurableCollectorCheckpoint(org, 'aws-cloudtrail', getCheckpoint(org, 'aws-cloudtrail'));
     const start = previous.lastCompletedAt
       ? new Date(new Date(previous.lastCompletedAt).getTime() - 30_000)
       : new Date(Date.now() - 5 * 60_000);
