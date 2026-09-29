@@ -124,6 +124,27 @@ export function getCollectorCheckpoints(organizationId: string) {
   });
 }
 
+
+export function getCollectorHealth(organizationId: string) {
+  const checkpoints = getCollectorCheckpoints(organizationId);
+  const failed = checkpoints.filter((c: any) => c.lastStatus === 'failed').length;
+  const stale = checkpoints.filter((c: any) => c.stale).length;
+  const healthy = checkpoints.filter((c: any) => c.lastStatus === 'success' && !c.stale).length;
+
+  const status = failed > 0 ? 'failed' : stale > 0 ? 'degraded' : 'healthy';
+
+  return {
+    organizationId,
+    status,
+    healthy,
+    stale,
+    failed,
+    total: checkpoints.length,
+    checkedAt: new Date().toISOString(),
+    collectors: checkpoints
+  };
+}
+
 export function startInfrastructureCollectorScheduler() {
   if (timer) return;
   const enabled = process.env.AIME_COLLECTOR_SCHEDULER !== 'false';
