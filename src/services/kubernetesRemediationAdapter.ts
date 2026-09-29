@@ -54,8 +54,8 @@ export async function executeKubernetesRemediation(
 
     try {
       const apps = config.makeApiClient(k8s.AppsV1Api);
-      const deploymentObject = await apps.readNamespacedDeployment(deployment, namespace);
-      const current = deploymentObject?.body || deploymentObject;
+      const deploymentObject = await apps.readNamespacedDeployment({ name: deployment, namespace });
+      const current = deploymentObject;
       const podTemplate = current.spec?.template;
       const annotations = podTemplate?.metadata?.annotations || {};
       const nextAnnotations = {
@@ -69,21 +69,17 @@ export async function executeKubernetesRemediation(
         }
       };
 
-      await apps.patchNamespacedDeployment(
-        deployment,
+      await apps.patchNamespacedDeployment({
+        name: deployment,
         namespace,
-        patched as any,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined
-      );
+        body: patched as any,
+        headers: { 'Content-Type': 'application/strategic-merge-patch+json' }
+      });
 
       const deadline = Date.now() + 120000;
       while (Date.now() < deadline) {
-        const response = await apps.readNamespacedDeployment(deployment, namespace);
-        const updated = response?.body || response;
+        const response = await apps.readNamespacedDeployment({ name: deployment, namespace });
+        const updated = response;
         const desired = Number(updated.spec?.replicas ?? 1);
         const available = Number(updated.status?.availableReplicas ?? 0);
         const ready = Number(updated.status?.readyReplicas ?? 0);
