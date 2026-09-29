@@ -6,38 +6,49 @@ import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 
 const execAsync = promisify(exec);
 
-// Encryption Key for Stored Credentials (AES-256-GCM)
-const ENCRYPTION_KEY = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim() || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('Missing required production secret: CREDENTIALS_ENCRYPTION_KEY'); })() : 'aime-dev-credentials-key');
+// Strict authenticated encryption for stored credentials (AES-256-GCM).
 const ALGORITHM = 'aes-256-gcm';
+const IV_BYTES = 12;
+const KEY_BYTES = 32;
+const CRYPTO_SALT = 'aime-credentials-v1';
+
+function encryptionKey() {
+  const configured = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim();
+  if (configured) return crypto.scryptSync(configured, CRYPTO_SALT, KEY_BYTES);
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Missing required production secret: CREDENTIALS_ENCRYPTION_KEY');
+  }
+  return crypto.scryptSync('aime-dev-credentials-key', CRYPTO_SALT, KEY_BYTES);
+}
 
 export function encryptSecret(plainText: string): string {
   if (!plainText) return '';
-  const iv = crypto.randomBytes(12);
-  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  let encrypted = cipher.update(plainText, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag().toString('hex');
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+  const iv = crypto.randomBytes(IV_BYTES);
+  const cipher = crypto.createCipheriv(ALGORITHM, encryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]);
+  return `v1:${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
 }
 
 export function decryptSecret(cipherText: string): string {
-  if (!cipherText || !cipherText.includes(':')) return cipherText; // return if unencrypted or empty
+  if (!cipherText) return '';
+  const parts = cipherText.split(':');
+  if (parts.length !== 4 || parts[0] !== 'v1') {
+    throw new Error('Invalid encrypted secret format.');
+  }
+
+  const [, ivHex, authTagHex, encryptedHex] = parts;
+  if (!/^[0-9a-f]+$/i.test(ivHex) || ivHex.length !== IV_BYTES * 2 ||
+      !/^[0-9a-f]+$/i.test(authTagHex) || authTagHex.length !== 32 ||
+      !/^[0-9a-f]+$/i.test(encryptedHex) || encryptedHex.length === 0) {
+    throw new Error('Invalid encrypted secret payload.');
+  }
+
   try {
-    const parts = cipherText.split(':');
-    if (parts.length !== 3) return cipherText;
-    const iv = Buffer.from(parts[0], 'hex');
-    const authTag = Buffer.from(parts[1], 'hex');
-    const encrypted = parts[2];
-    const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (err) {
-    console.warn('[SSH Security] Could not decrypt secret payload, returning fallback:', err);
-    return cipherText;
+    const decipher = crypto.createDecipheriv(ALGORITHM, encryptionKey(), Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+    return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
+  } catch {
+    throw new Error('Encrypted secret authentication failed.');
   }
 }
 
