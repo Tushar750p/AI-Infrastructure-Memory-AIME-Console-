@@ -87,6 +87,19 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
   return snapshot;
 }
 
+export function preserveDockerRollbackCandidate(
+  organizationId: string,
+  hostId: string,
+  containerId: string,
+  snapshot: any,
+  eventId: string
+) {
+  verifyDockerRollbackSnapshot(snapshot);
+  const key = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${eventId}`;
+  setCollectionData(key, { ...snapshot, candidateEventId: eventId, candidateCreatedAt: new Date().toISOString() });
+  return key;
+}
+
 export function getDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
   return getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
 }
