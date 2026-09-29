@@ -38,7 +38,6 @@ export async function executeDockerRemediation(
   const remediation = getRemediation(organizationId, remediationId);
   if (!remediation) throw new Error('Remediation not found.');
   if (remediation.status !== 'approved') throw new Error('Remediation is not approved.');
-  transitionRemediation(organizationId, remediationId, 'approved', 'executing');
 
   if (!ALLOWED_REMEDIATION_ACTIONS.includes(remediation.actionType as any)) {
     throw new Error('Action is not allowed by remediation policy.');
@@ -47,6 +46,8 @@ export async function executeDockerRemediation(
   if (!['restart_container', 'acknowledge_alert'].includes(remediation.actionType)) {
     throw new Error('Docker adapter only supports restart_container and acknowledge_alert.');
   }
+
+  transitionRemediation(organizationId, remediationId, 'approved', 'executing');
 
   if (remediation.actionType === 'acknowledge_alert') {
     const verification = 'Alert acknowledged at policy layer; no Docker mutation performed.';
