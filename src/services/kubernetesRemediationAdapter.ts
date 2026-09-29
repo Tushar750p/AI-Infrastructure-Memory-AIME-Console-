@@ -72,8 +72,7 @@ export async function executeKubernetesRemediation(
       await apps.patchNamespacedDeployment({
         name: deployment,
         namespace,
-        body: patched as any,
-        headers: { 'Content-Type': 'application/strategic-merge-patch+json' }
+        body: patched as any
       });
 
       const deadline = Date.now() + 120000;
