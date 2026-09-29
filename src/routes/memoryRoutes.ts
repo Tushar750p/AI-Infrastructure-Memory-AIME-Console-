@@ -220,17 +220,17 @@ memoryRouter.get('/infrastructure/remediation-audit', requirePermission('audit:r
 });
 
 
-memoryRouter.get('/infrastructure/collector-health', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/collector-health', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    res.json({ success: true, ...getCollectorHealth(getTenantId(req)) });
+    res.json({ success: true, ...await getDurableCollectorHealth(getTenantId(req)) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-memoryRouter.get('/infrastructure/collector-checkpoints', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/collector-checkpoints', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    res.json({ success: true, checkpoints: getCollectorCheckpoints(getTenantId(req)) });
+    res.json({ success: true, checkpoints: await getDurableCollectorCheckpoints(getTenantId(req)) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
