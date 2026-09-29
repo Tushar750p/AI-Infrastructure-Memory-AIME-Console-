@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { dockerRollbackSnapshotKey, verifyDockerRollbackSnapshot, preserveDockerRollbackCandidate, listDockerRollbackCandidates, getDockerRollbackCandidate } from '../src/services/dockerRollbackSnapshotService.js';
+import { dockerRollbackSnapshotKey, verifyDockerRollbackSnapshot, preserveDockerRollbackCandidate, listDockerRollbackCandidates, getDockerRollbackCandidate, migrateLatestDockerRollbackSnapshot } from '../src/services/dockerRollbackSnapshotService.js';
 import { setCollectionData, getCollectionData } from '../src/db/firestoreDb.js';
+import { encryptSecret } from '../src/services/sshService.js';
 
 assert.equal(
   dockerRollbackSnapshotKey('org-test', 'host-1', 'container-1'),
@@ -109,5 +110,22 @@ assert.throws(
 
 delete process.env.AIME_DOCKER_ROLLBACK_RETENTION;
 
-console.log('Docker rollback snapshot integrity, tenant isolation, and retention tests passed.');
+const legacySecret = encryptSecret('legacy-test-secret');
+const legacyLikeSecret = legacySecret.replace(/^v1:/, '');
+const legacySnapshot = {
+  ...unsigned,
+  env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacyLikeSecret}`],
+  integrityHash: ''
+};
+legacySnapshot.integrityHash = createHash(legacySnapshot);
+setCollectionData(
+  dockerRollbackSnapshotKey('org-migration', 'host-1', 'container-1'),
+  legacySnapshot
+);
+const migrated = migrateLatestDockerRollbackSnapshot('org-migration', 'host-1', 'container-1');
+assert.ok(migrated);
+assert.match(migrated.env[0], /^DB_PASSWORD=__AIME_ENCRYPTED__v1:/);
+assert.doesNotThrow(() => verifyDockerRollbackSnapshot(migrated));
+
+console.log('Docker rollback snapshot integrity, tenant isolation, retention, and migration tests passed.');
 
