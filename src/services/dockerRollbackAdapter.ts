@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import fs from 'fs';
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getRollback, transitionRollback } from './remediationService.js';
-import { getDockerRollbackSnapshot } from './dockerRollbackSnapshotService.js';
+import { getDockerRollbackSnapshot, verifyDockerRollbackSnapshot } from './dockerRollbackSnapshotService.js';
 
 function dockerClient(host: any): Docker | null {
   if (host.socketPath && fs.existsSync(host.socketPath)) return new Docker({ socketPath: host.socketPath });
@@ -16,6 +16,7 @@ function dockerClient(host: any): Docker | null {
 
 
 export async function validateSnapshotCompatibility(docker: Docker, snapshot: any) {
+  verifyDockerRollbackSnapshot(snapshot);
   if (!snapshot.image) throw new Error('Rollback snapshot has no Docker image.');
   try {
     await docker.getImage(snapshot.image).inspect();
