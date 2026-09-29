@@ -219,7 +219,10 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
     }
 
     const verification = `Docker container ${verifiedContainerId} restored from snapshot captured at ${snapshot.capturedAt}.`;
-    transitionRollback(organizationId, rollbackId, 'executing', 'verified', { verification });
+    transitionRollback(organizationId, rollbackId, 'executing', 'verified', {
+      verification,
+      verifiedResourceId: `${hostId}:${verifiedContainerId}`
+    });
     return { success: true, rollbackId, resourceId: `${hostId}:${verifiedContainerId}`, verification };
   } catch (error) {
     const failureReason = error instanceof Error ? error.message : String(error);
