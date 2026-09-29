@@ -133,15 +133,17 @@ export function getCollectorHealth(organizationId: string) {
   const checkpoints = getCollectorCheckpoints(organizationId);
   const failed = checkpoints.filter((c: any) => c.lastStatus === 'failed').length;
   const stale = checkpoints.filter((c: any) => c.stale).length;
-  const healthy = checkpoints.filter((c: any) => c.lastStatus === 'success' && !c.stale).length;
+  const truncated = checkpoints.filter((c: any) => c.lastTruncated).length;
+  const healthy = checkpoints.filter((c: any) => c.lastStatus === 'success' && !c.stale && !c.lastTruncated).length;
 
-  const status = failed > 0 ? 'failed' : stale > 0 ? 'degraded' : 'healthy';
+  const status = failed > 0 ? 'failed' : stale > 0 || truncated > 0 ? 'degraded' : 'healthy';
 
   return {
     organizationId,
     status,
     healthy,
     stale,
+    truncated,
     failed,
     total: checkpoints.length,
     checkedAt: new Date().toISOString(),
