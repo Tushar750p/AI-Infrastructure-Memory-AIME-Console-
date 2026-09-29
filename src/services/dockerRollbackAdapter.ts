@@ -99,7 +99,6 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
     if (rollback.rollbackType === 'docker_container_config') {
       await validateSnapshotCompatibility(docker, snapshot);
     }
-    transitionRollback(organizationId, rollbackId, 'approved', 'executing');
     let container = docker.getContainer(containerId);
     let current: any;
     try {
@@ -111,10 +110,13 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
       current = await container.inspect();
     }
 
+    if (rollback.rollbackType === 'docker_container_snapshot' && current.Config?.Image !== snapshot.image) {
+      throw new Error('Rollback refused: current container image differs from trusted snapshot.');
+    }
+
+    transitionRollback(organizationId, rollbackId, 'approved', 'executing');
+
     if (rollback.rollbackType === 'docker_container_snapshot') {
-      if (current.Config?.Image !== snapshot.image) {
-        throw new Error('Rollback refused: current container image differs from trusted snapshot.');
-      }
       if (snapshot.running && !current.State?.Running) await container.start();
       if (!snapshot.running && current.State?.Running) await container.stop();
     } else if (rollback.rollbackType === 'docker_container_config') {
