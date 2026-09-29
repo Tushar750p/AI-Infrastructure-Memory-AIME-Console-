@@ -40,3 +40,7 @@ assert.equal(verified?.executionLock, undefined);
 assert.equal(verified?.verification, 'Test verification passed.');
 
 console.log('Remediation lifecycle tests passed.');
+
+
+const invalidRollback = () => proposeRollback({ organizationId: '', remediationId: 'r', resourceId: 'h:c', rollbackType: 'docker_container_snapshot', description: 'x', reason: 'x', proposedBy: 'u', evidenceEventIds: [] });
+assert.throws(invalidRollback, /organizationId/);
