@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import fs from 'fs';
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getRollback, transitionRollback } from './remediationService.js';
-import { getDockerRollbackSnapshot, getDockerRollbackCandidate, migrateLatestDockerRollbackSnapshot, decodeSnapshotEnv, verifyDockerRollbackSnapshot } from './dockerRollbackSnapshotService.js';
+import { getDockerRollbackCandidate, migrateLatestDockerRollbackSnapshot, decodeSnapshotEnv, verifyDockerRollbackSnapshot } from './dockerRollbackSnapshotService.js';
 
 function dockerClient(host: any): Docker | null {
   if (host.socketPath && fs.existsSync(host.socketPath)) return new Docker({ socketPath: host.socketPath });
