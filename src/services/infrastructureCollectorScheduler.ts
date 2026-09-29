@@ -1,4 +1,4 @@
-import { getCollectionData } from '../db/firestoreDb.js';
+import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { getDurableCollectorCheckpoint, setDurableCollectorCheckpoint } from './durableCollectorCheckpointService.js';
 import { acquireCollectorLock, releaseCollectorLock } from './collectorLockService.js';
 import { ingestAwsCloudTrailEvents } from './awsCloudTrailCollector.js';
