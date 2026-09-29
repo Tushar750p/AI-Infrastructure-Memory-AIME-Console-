@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { AuthenticatedRequest } from './authRoutes.js';
 import {
   initializeMemoryStore,
   storeMemoryItem,
@@ -11,6 +12,7 @@ import {
   MemoryType
 } from '../services/memoryEngine.js';
 import { getCollectionData } from '../db/firestoreDb.js';
+import { getTenantId, tenantRecords, findTenantRecord } from '../services/tenantAccess.js';
 
 export const memoryRouter = Router();
 
@@ -20,10 +22,10 @@ initializeMemoryStore().catch(err => {
 });
 
 // GET /api/memory - List all memory items with optional filters
-memoryRouter.get('/memory', (req: Request, res: Response) => {
+memoryRouter.get('/memory', (req: AuthenticatedRequest, res: Response) => {
   try {
     const { memoryType, severity, serverId, search, limit = '50', page = '1' } = req.query;
-    let memories = getCollectionData('ai_memory', []);
+    let memories = tenantRecords(getCollectionData('ai_memory', []), getTenantId(req));
 
     if (memoryType) {
       const mt = String(memoryType).toLowerCase();
@@ -72,7 +74,7 @@ memoryRouter.get('/memory', (req: Request, res: Response) => {
 });
 
 // GET /api/memory/search - Natural Language & Vector Semantic Search
-memoryRouter.get('/memory/search', async (req: Request, res: Response) => {
+memoryRouter.get('/memory/search', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const query = (req.query.q || req.query.query || '') as string;
     const memoryType = req.query.type as string | undefined;
@@ -90,6 +92,7 @@ memoryRouter.get('/memory/search', async (req: Request, res: Response) => {
       memoryType,
       severity,
       serverId,
+      organizationId: getTenantId(req),
       limit,
       threshold
     });
@@ -106,7 +109,7 @@ memoryRouter.get('/memory/search', async (req: Request, res: Response) => {
 });
 
 // GET /api/memory/timeline - Infrastructure Event Timeline
-memoryRouter.get('/memory/timeline', (req: Request, res: Response) => {
+memoryRouter.get('/memory/timeline', (req: AuthenticatedRequest, res: Response) => {
   try {
     const start = req.query.start as string | undefined;
     const end = req.query.end as string | undefined;
@@ -114,7 +117,7 @@ memoryRouter.get('/memory/timeline', (req: Request, res: Response) => {
     const serverId = req.query.serverId as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
 
-    const timeline = getTimeline({ start, end, type, serverId, limit });
+    const timeline = getTimeline({ start, end, type, serverId, limit, organizationId: getTenantId(req) });
 
     res.json({
       totalEvents: timeline.length,
@@ -126,9 +129,9 @@ memoryRouter.get('/memory/timeline', (req: Request, res: Response) => {
 });
 
 // GET /api/memory/incidents - Incident Memories with Root Cause & Previous Fixes
-memoryRouter.get('/memory/incidents', (req: Request, res: Response) => {
+memoryRouter.get('/memory/incidents', (req: AuthenticatedRequest, res: Response) => {
   try {
-    const memories = getCollectionData('ai_memory', []);
+    const memories = tenantRecords(getCollectionData('ai_memory', []), getTenantId(req));
     const incidents = memories.filter((m: any) =>
       m.memoryType === 'Incident Memory' || m.severity === 'critical'
     );
@@ -156,9 +159,9 @@ memoryRouter.get('/memory/incidents', (req: Request, res: Response) => {
 });
 
 // GET /api/memory/recommendations - AI Recommendations categorized
-memoryRouter.get('/memory/recommendations', (req: Request, res: Response) => {
+memoryRouter.get('/memory/recommendations', (req: AuthenticatedRequest, res: Response) => {
   try {
-    const recommendations = getAIRecommendations();
+    const recommendations = getAIRecommendations(getTenantId(req));
     res.json(recommendations);
   } catch (err: any) {
     res.status(500).json({ error: `Failed to fetch AI recommendations: ${err.message}` });
@@ -166,10 +169,10 @@ memoryRouter.get('/memory/recommendations', (req: Request, res: Response) => {
 });
 
 // GET /api/memory/root-cause - Root Cause Analysis
-memoryRouter.get('/memory/root-cause', async (req: Request, res: Response) => {
+memoryRouter.get('/memory/root-cause', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const query = (req.query.q || req.query.query || req.query.id || 'Nginx connection pool exhaustion') as string;
-    const rca = await getRootCauseAnalysis(query);
+    const rca = await getRootCauseAnalysis(query, getTenantId(req));
     res.json(rca);
   } catch (err: any) {
     res.status(500).json({ error: `Root cause analysis failed: ${err.message}` });
@@ -177,7 +180,7 @@ memoryRouter.get('/memory/root-cause', async (req: Request, res: Response) => {
 });
 
 // POST /api/memory/store - Store new AI Memory item
-memoryRouter.post('/memory/store', async (req: Request, res: Response) => {
+memoryRouter.post('/memory/store', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       memoryType,
@@ -230,7 +233,9 @@ memoryRouter.post('/memory/store', async (req: Request, res: Response) => {
       previousResolution,
       command,
       exitCode,
-      environment
+      environment,
+      organizationId: getTenantId(req),
+      createdBy: req.user.id
     });
 
     res.status(201).json({
@@ -243,10 +248,10 @@ memoryRouter.post('/memory/store', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/memory/:id - Delete AI Memory item
-memoryRouter.delete('/memory/:id', (req: Request, res: Response) => {
+memoryRouter.delete('/memory/:id', (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const success = deleteMemoryItem(id);
+    const success = deleteMemoryItem(id, getTenantId(req));
 
     if (!success) {
       return res.status(404).json({ error: `AI Memory item with ID '${id}' not found.` });
@@ -259,9 +264,9 @@ memoryRouter.delete('/memory/:id', (req: Request, res: Response) => {
 });
 
 // GET /api/memory/reports - Daily and Weekly summary reports
-memoryRouter.get('/memory/reports', (req: Request, res: Response) => {
+memoryRouter.get('/memory/reports', (req: AuthenticatedRequest, res: Response) => {
   try {
-    const reports = getSummaryReports();
+    const reports = getSummaryReports(getTenantId(req));
     res.json(reports);
   } catch (err: any) {
     res.status(500).json({ error: `Failed to generate memory reports: ${err.message}` });
