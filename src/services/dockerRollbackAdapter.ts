@@ -14,6 +14,34 @@ function dockerClient(host: any): Docker | null {
   } catch { return null; }
 }
 
+
+async function validateSnapshotCompatibility(docker: Docker, snapshot: any) {
+  if (!snapshot.image) throw new Error('Rollback snapshot has no Docker image.');
+  try {
+    await docker.getImage(snapshot.image).inspect();
+  } catch {
+    throw new Error(`Rollback preflight failed: Docker image "${snapshot.image}" is not available on the target host.`);
+  }
+
+  const networkMode = String(snapshot.networkMode || '');
+  if (networkMode && networkMode !== 'default' && !networkMode.startsWith('container:') && !networkMode.startsWith('host')) {
+    try {
+      await docker.getNetwork(networkMode).inspect();
+    } catch {
+      throw new Error(`Rollback preflight failed: Docker network "${networkMode}" is not available on the target host.`);
+    }
+  }
+
+  const binds = Array.isArray(snapshot.binds) ? snapshot.binds : [];
+  for (const bind of binds) {
+    const source = String(bind).split(':')[0];
+    if (!source || !source.startsWith('/')) continue;
+    if (!fs.existsSync(source)) {
+      throw new Error(`Rollback preflight failed: bind source "${source}" is not available on the target host.`);
+    }
+  }
+}
+
 export async function executeDockerRollback(organizationId: string, rollbackId: string) {
   const rollback = getRollback(organizationId, rollbackId);
   if (!rollback) throw new Error('Rollback not found.');
@@ -35,10 +63,12 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
   const docker = dockerClient(host);
   if (!docker) throw new Error('Docker host connection is unavailable.');
 
-  transitionRollback(organizationId, rollbackId, 'approved', 'executing');
-
   try {
     await docker.ping();
+    if (rollback.rollbackType === 'docker_container_config') {
+      await validateSnapshotCompatibility(docker, snapshot);
+    }
+    transitionRollback(organizationId, rollbackId, 'approved', 'executing');
     const container = docker.getContainer(containerId);
     const current = await container.inspect();
 
