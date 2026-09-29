@@ -16,6 +16,7 @@ export interface CorrelatedEventGroup {
   firstSeen: string;
   lastSeen: string;
   confidence: number;
+  tags: string[];
 }
 
 function stable(value: unknown): string {
@@ -82,7 +83,7 @@ export function correlateInfrastructureEvents(
       ts - new Date(g.lastSeen).getTime() <= windowMs &&
       (g.resourceIds.includes(event.resourceId) ||
        g.sources.includes(event.source) ||
-       event.tags?.some(tag => g.sources.includes(tag)))
+       event.tags?.some(tag => g.tags.includes(tag)))
     );
 
     const group = candidates[0];
@@ -95,7 +96,8 @@ export function correlateInfrastructureEvents(
         severity: event.severity,
         firstSeen: event.timestamp,
         lastSeen: event.timestamp,
-        confidence: 0.55
+        confidence: 0.55,
+        tags: [...(event.tags || [])]
       });
       continue;
     }
@@ -103,6 +105,9 @@ export function correlateInfrastructureEvents(
     group.eventIds.push(event.id);
     if (!group.sources.includes(event.source)) group.sources.push(event.source);
     if (!group.resourceIds.includes(event.resourceId)) group.resourceIds.push(event.resourceId);
+    for (const tag of event.tags || []) {
+      if (!group.tags.includes(tag)) group.tags.push(tag);
+    }
     group.lastSeen = event.timestamp;
     if (severityRank(event.severity) > severityRank(group.severity)) group.severity = event.severity;
 
