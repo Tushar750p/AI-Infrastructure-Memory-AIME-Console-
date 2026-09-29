@@ -1,6 +1,6 @@
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { getDurableCollectorCheckpoint, setDurableCollectorCheckpoint } from './durableCollectorCheckpointService.js';
-import { acquireCollectorLock, releaseCollectorLock } from './collectorLockService.js';
+import { acquireCollectorLock, releaseCollectorLock, renewCollectorLock } from './collectorLockService.js';
 import { ingestAwsCloudTrailEvents } from './awsCloudTrailCollector.js';
 import { collectAwsStateChanges } from './awsStateChangeCollector.js';
 import { collectKubernetesEvents, collectKubernetesState } from './kubernetesEventCollector.js';
@@ -109,6 +109,12 @@ export async function runInfrastructureCollectors() {
   if (!lock) return { skipped: true, reason: 'Collector cycle lease is already held by another instance.' };
 
   running = true;
+  const renewalIntervalMs = Math.max(Math.floor((Date.now() + 1) * 0 + Number(process.env.AIME_COLLECTOR_LOCK_TTL_MS || 120000) / 3), 10000);
+  const renewalTimer = setInterval(() => {
+    void renewCollectorLock(lock, Number(process.env.AIME_COLLECTOR_LOCK_TTL_MS || 120000)).then((renewed) => {
+      if (!renewed) console.warn('[AIME Collector] Collector lock renewal failed; lease may expire before cycle completion.');
+    });
+  }, renewalIntervalMs);
   try {
     const orgs = organizations();
     for (const org of orgs) {
@@ -117,6 +123,7 @@ export async function runInfrastructureCollectors() {
     const durableHistory = await flushDurableInfrastructureHistory();
     return { skipped: false, organizations: orgs.length, durableHistory };
   } finally {
+    clearInterval(renewalTimer);
     running = false;
     await releaseCollectorLock(lock);
   }
