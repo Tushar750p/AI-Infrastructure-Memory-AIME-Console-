@@ -20,11 +20,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Legacy collections remain temporarily compatible with the existing
-    // Firebase client-SDK architecture. They must be migrated to Admin SDK
-    // access before the global fallback rule is removed.
+    // All application persistence is server-side through Firebase Admin SDK.
+    // Browser/client access is denied by default.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
