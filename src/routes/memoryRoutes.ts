@@ -31,7 +31,7 @@ import { executeDockerRemediation } from '../services/dockerRemediationAdapter.j
 import { executeKubernetesRemediation } from '../services/kubernetesRemediationAdapter.js';
 import { executeAwsRemediation } from '../services/awsRemediationAdapter.js';
 import { executeDockerRollback } from '../services/dockerRollbackAdapter.js';
-import { captureDockerRollbackSnapshot } from '../services/dockerRollbackSnapshotService.js';
+import { captureDockerRollbackSnapshot, listDockerRollbackCandidates } from '../services/dockerRollbackSnapshotService.js';
 import { getCollectorCheckpoints, getCollectorHealth, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
 
 export const memoryRouter = Router();
@@ -84,7 +84,8 @@ memoryRouter.post('/infrastructure/rollbacks', requirePermission('infra:write'),
       reason: String(req.body?.reason || ''),
       status: 'proposed',
       proposedBy: req.user.id,
-      evidenceEventIds: Array.isArray(req.body?.evidenceEventIds) ? req.body.evidenceEventIds : []
+      evidenceEventIds: Array.isArray(req.body?.evidenceEventIds) ? req.body.evidenceEventIds : [],
+      targetSnapshotId: req.body?.targetSnapshotId ? String(req.body.targetSnapshotId) : undefined
     });
     if (!rollback.remediationId || !rollback.resourceId || !rollback.rollbackType) {
       return res.status(400).json({ success: false, error: 'remediationId, resourceId and rollbackType are required.' });
@@ -108,6 +109,30 @@ memoryRouter.post('/infrastructure/rollbacks/docker/snapshot', requirePermission
     res.status(201).json({ success: true, snapshot: { ...metadata, env: [] } });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.get('/infrastructure/rollbacks/docker/candidates', requirePermission('infra:read'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const hostId = String(req.query?.hostId || '');
+    const containerId = String(req.query?.containerId || '');
+    const limit = Math.min(Math.max(parseInt(String(req.query?.limit || '20'), 10) || 20, 1), 100);
+    if (!hostId || !containerId) return res.status(400).json({ success: false, error: 'hostId and containerId are required.' });
+    const candidates = listDockerRollbackCandidates(getTenantId(req), hostId, containerId, limit);
+    res.json({
+      success: true,
+      candidates: candidates.map((candidate: any) => ({
+        candidateEventId: candidate.candidateEventId,
+        candidateCreatedAt: candidate.candidateCreatedAt,
+        capturedAt: candidate.capturedAt,
+        image: candidate.image,
+        running: candidate.running,
+        name: candidate.name,
+        integrityHash: candidate.integrityHash
+      }))
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
