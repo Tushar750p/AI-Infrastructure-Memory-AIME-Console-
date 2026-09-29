@@ -15,6 +15,7 @@ import { awsAccountRouter } from './src/routes/awsAccountRoutes.js';
 import { memoryRouter } from './src/routes/memoryRoutes.js';
 import { storeMemoryItem } from './src/services/memoryEngine.js';
 import { startInfrastructureCollectorScheduler } from './src/services/infrastructureCollectorScheduler.js';
+import { flushDurableInfrastructureHistory } from './src/services/durableInfrastructureHistoryService.js';
 
 dotenv.config();
 
@@ -2796,6 +2797,29 @@ async function start() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`AI Infrastructure Memory server listening on port ${PORT}`);
     startInfrastructureCollectorScheduler();
+
+    if (process.env.AIME_DURABLE_STATE === 'true') {
+      const flushIntervalMs = Math.max(
+        Number(process.env.AIME_DURABLE_HISTORY_FLUSH_INTERVAL_MS || 10000),
+        5000
+      );
+      const durableFlushTimer = setInterval(() => {
+        void flushDurableInfrastructureHistory();
+      }, flushIntervalMs);
+      durableFlushTimer.unref?.();
+
+      const gracefulFlush = async (signal: string) => {
+        console.log(`[Durable History] Flushing pending records before ${signal} shutdown.`);
+        await flushDurableInfrastructureHistory();
+      };
+
+      process.once('SIGTERM', () => {
+        void gracefulFlush('SIGTERM').finally(() => process.exit(0));
+      });
+      process.once('SIGINT', () => {
+        void gracefulFlush('SIGINT').finally(() => process.exit(0));
+      });
+    }
   });
 
   // Bootstrap Cloud Firestore Database with seeds in background without blocking server startup
