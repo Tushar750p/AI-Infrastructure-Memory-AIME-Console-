@@ -15,6 +15,10 @@ import { consumeAuthRateLimit } from '../services/authRateLimitService.js';
 
 export const authRouter = Router();
 
+function hashRefreshToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function base32Encode(input: Buffer): string {
@@ -235,7 +239,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     refreshTokens.push({
       id: `rt-${Date.now()}`,
       userId,
-      token: refreshToken,
+      tokenHash: hashRefreshToken(refreshToken),
       createdAt: now,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       familyId: sessionId
@@ -449,7 +453,7 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
   const refreshTokens = getCollectionData('refreshTokens', []);
   const storedRefresh = refreshTokens.find((r: any) =>
     r.userId === payload.userId &&
-    r.token === refreshToken
+    (r.tokenHash ? r.tokenHash === hashRefreshToken(refreshToken) : r.token === refreshToken)
   );
   if (!storedRefresh) {
     return res.status(401).json({ error: 'Refresh token has been revoked or expired' });
@@ -485,7 +489,7 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
   refreshTokens.push({
     id: `rt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     userId: user.id,
-    token: newRefresh,
+    tokenHash: hashRefreshToken(newRefresh),
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     familyId
