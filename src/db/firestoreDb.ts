@@ -301,16 +301,20 @@ export function setCollectionData(collName: string, data: any) {
     return;
   }
 
-  // Asynchronously sync to Cloud Firestore
+  // Server-side persistence uses Firebase Admin SDK so Firestore Security Rules
+  // do not need to trust an application-wide client write path.
   (async () => {
     try {
+      const adminDb = getAdminDb();
+      if (!adminDb) return;
+
       if (Array.isArray(data)) {
         for (const item of data) {
           if (quotaExceeded) break;
           try {
             const enriched = enrichRecord(item, collName);
             const docId = String(enriched.id || `doc-${Date.now()}`);
-            await setDoc(doc(db, collName, docId), sanitizeForFirestore(enriched));
+            await adminDb.collection(collName).doc(docId).set({ ...sanitizeForFirestore(enriched), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
           } catch (docErr: any) {
             const errMsg = String(docErr?.message || docErr).toLowerCase();
             if (errMsg.includes('quota') || errMsg.includes('resource_exhausted') || errMsg.includes('resource-exhausted') || docErr?.code === 'resource-exhausted') {
@@ -322,7 +326,7 @@ export function setCollectionData(collName: string, data: any) {
         }
       } else {
         const enriched = enrichRecord(data, collName);
-        await setDoc(doc(db, collName, 'config'), sanitizeForFirestore(enriched));
+        await adminDb.collection(collName).doc('config').set({ ...sanitizeForFirestore(enriched), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       }
     } catch (err: any) {
       const errMsg = String(err?.message || err).toLowerCase();
