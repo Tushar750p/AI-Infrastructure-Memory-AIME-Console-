@@ -64,7 +64,7 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
 
   const container = docker.getContainer(containerId);
   const inspected: any = await container.inspect();
-  const snapshot = {
+  const snapshot: Record<string, any> = {
     organizationId,
     hostId,
     containerId,
