@@ -4,7 +4,7 @@ import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 
 const DEFAULT_TTL_MS = Math.max(Number(process.env.AIME_COLLECTOR_LOCK_TTL_MS || 120000), 30000);
 const RELEASE_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
-let redisClient: RedisClientType | null = null;
+let redisClient: any = null;
 let redisAttempted = false;
 
 function lockKey(scope: string) {
@@ -15,7 +15,7 @@ function token() {
   return crypto.randomUUID();
 }
 
-async function getRedis(): Promise<RedisClientType | null> {
+async function getRedis(): Promise<any> {
   if (redisAttempted) return redisClient;
   redisAttempted = true;
 
