@@ -141,13 +141,14 @@ export async function ensureSeedUsers() {
 }
 
 // Generate JWT Tokens
-export function generateTokens(user: any, sessionId: string) {
+export function generateTokens(user: any, sessionId: string, familyId = sessionId) {
   const payload = {
     userId: user.id,
     email: user.email,
     role: user.role || 'SRE',
     organizationId: user.organizationId || 'org-aime-01',
-    sessionId
+    sessionId,
+    familyId
   };
 
   const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
