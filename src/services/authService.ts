@@ -1,10 +1,23 @@
+import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'aime-enterprise-jwt-secret-key-2026-production-secure';
-const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'aime-enterprise-refresh-secret-key-2026-production';
+function getRequiredSecret(name: 'JWT_SECRET' | 'REFRESH_TOKEN_SECRET'): string {
+  const value = process.env[name]?.trim();
+  if (value) return value;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`Missing required production secret: ${name}`);
+  }
+
+  // Development-only fallback. This must never be used in production.
+  return `aime-dev-${name.toLowerCase()}-${process.pid}`;
+}
+
+const JWT_SECRET = getRequiredSecret('JWT_SECRET');
+const REFRESH_SECRET = getRequiredSecret('REFRESH_TOKEN_SECRET');
 
 // Password complexity regex: at least 8 chars, at least 1 uppercase, 1 lowercase, 1 number
 export function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
