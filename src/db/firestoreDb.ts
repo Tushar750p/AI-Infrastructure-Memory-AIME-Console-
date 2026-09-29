@@ -219,7 +219,7 @@ export async function initializeFirestoreDatabase(seedDataMap: Record<string, an
         try {
           const adminDb = getAdminDb();
           if (!adminDb) throw new Error('Admin Firestore unavailable');
-          const snapshot = await withTimeout(adminDb.collection(collName).get(), 2000, `Firestore getDocs timeout for ${collName}`);
+          const snapshot: any = await withTimeout(adminDb.collection(collName).get(), 2000, `Firestore getDocs timeout for ${collName}`);
 
           if (!snapshot.empty) {
             if (Array.isArray(seedData)) {
