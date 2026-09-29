@@ -1,10 +1,13 @@
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
+import { isDuplicateEvent, rememberEventFingerprint } from './eventIntelligenceService.js';
 
 const COLLECTION = 'infrastructureEvents';
 
 export function ingestInfrastructureEvent(event: InfrastructureEvent): InfrastructureEvent {
   const events = getCollectionData(COLLECTION, []);
+  if (isDuplicateEvent(event)) return event;
+  rememberEventFingerprint(event);
   const tenantEvents = events.filter((e: any) => e.organizationId === event.organizationId);
   const duplicate = tenantEvents.find((e: any) => e.id === event.id);
   if (duplicate) return duplicate;
