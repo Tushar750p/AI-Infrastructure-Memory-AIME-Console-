@@ -31,6 +31,7 @@ import { executeDockerRemediation } from '../services/dockerRemediationAdapter.j
 import { executeKubernetesRemediation } from '../services/kubernetesRemediationAdapter.js';
 import { executeAwsRemediation } from '../services/awsRemediationAdapter.js';
 import { executeDockerRollback } from '../services/dockerRollbackAdapter.js';
+import { captureDockerRollbackSnapshot } from '../services/dockerRollbackSnapshotService.js';
 import { getCollectorCheckpoints, getCollectorHealth, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
 
 export const memoryRouter = Router();
@@ -91,6 +92,22 @@ memoryRouter.post('/infrastructure/rollbacks', requirePermission('infra:write'),
     res.status(201).json({ success: true, rollback });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/rollbacks/docker/snapshot', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const organizationId = getTenantId(req);
+    const hostId = String(req.body?.hostId || '');
+    const containerId = String(req.body?.containerId || '');
+    if (!hostId || !containerId) {
+      return res.status(400).json({ success: false, error: 'hostId and containerId are required.' });
+    }
+    const snapshot = await captureDockerRollbackSnapshot(organizationId, hostId, containerId);
+    const { env, ...metadata } = snapshot;
+    res.status(201).json({ success: true, snapshot: { ...metadata, env: [] } });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
