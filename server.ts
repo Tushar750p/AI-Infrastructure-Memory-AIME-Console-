@@ -33,6 +33,31 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+const csrfSafeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+const configuredOrigins = (process.env.AIME_ALLOWED_ORIGINS || process.env.APP_URL || '')
+  .split(',')
+  .map(origin => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+app.use('/api', (req, res, next) => {
+  if (csrfSafeMethods.has(req.method)) return next();
+
+  // Bearer-token clients are not vulnerable to browser cookie CSRF.
+  const hasBearerAuth = req.headers.authorization?.startsWith('Bearer ');
+  if (hasBearerAuth) return next();
+
+  // Cookie-authenticated state changes require a trusted Origin.
+  const hasAccessCookie = Boolean(req.cookies?.accessToken);
+  if (!hasAccessCookie) return next();
+
+  const origin = req.headers.origin?.replace(/\/$/, '');
+  if (!origin || !configuredOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Forbidden: untrusted request origin' });
+  }
+
+  next();
+});
+
 app.use('/api/auth', authRouter);
 
 // Every non-auth API endpoint requires an authenticated session.
