@@ -35,14 +35,6 @@ function organizations(): string[] {
   return [...new Set(ids)];
 }
 
-/* legacy implementation removed */
-/* return [...new Set(
-    getCollectionData('organizations', [])
-      .map((o: any) => o.id)
-      .filter(Boolean)
-      .map(String)
-  )];
-}*/
 
 function getCheckpoint(org: string, collector: CollectorName): Checkpoint {
   return getCollectionData(checkpointKey(org, collector), {
