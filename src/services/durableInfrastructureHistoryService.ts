@@ -109,6 +109,45 @@ export async function flushDurableInfrastructureHistory(): Promise<{ events: num
   }
 }
 
+
+export async function loadDurableHistory(
+  organizationId: string,
+  limit = 100
+): Promise<{ events: InfrastructureEvent[]; snapshots: any[] }> {
+  const db = getAdminDb();
+  const safeLimit = Math.min(Math.max(limit, 1), 1000);
+
+  if (!db) {
+    return loadRecentHistoryForRecovery(organizationId, safeLimit);
+  }
+
+  try {
+    const [eventSnapshot, timeMachineSnapshot] = await Promise.all([
+      db.collection('infrastructureEvents')
+        .where('organizationId', '==', organizationId)
+        .orderBy('timestamp', 'desc')
+        .limit(safeLimit)
+        .get(),
+      db.collection('timeMachineSnapshots')
+        .where('organizationId', '==', organizationId)
+        .orderBy('timestamp', 'desc')
+        .limit(safeLimit)
+        .get()
+    ]);
+
+    return {
+      events: eventSnapshot.docs.map((doc: any) => doc.data() as InfrastructureEvent),
+      snapshots: timeMachineSnapshot.docs.map((doc: any) => doc.data())
+    };
+  } catch (error) {
+    console.warn(
+      '[Durable History] Read failed; using compatibility store:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return loadRecentHistoryForRecovery(organizationId, safeLimit);
+  }
+}
+
 export function durableHistoryQueueSize() {
   return { events: pendingEvents.size, snapshots: pendingSnapshots.size };
 }
