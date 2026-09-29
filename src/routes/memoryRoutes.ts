@@ -30,6 +30,7 @@ import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 import { executeDockerRemediation } from '../services/dockerRemediationAdapter.js';
 import { executeKubernetesRemediation } from '../services/kubernetesRemediationAdapter.js';
 import { executeAwsRemediation } from '../services/awsRemediationAdapter.js';
+import { getCollectorCheckpoints, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
 
 export const memoryRouter = Router();
 
@@ -120,6 +121,24 @@ memoryRouter.get('/infrastructure/remediation-audit', requirePermission('audit:r
       .filter((entry: any) => entry.organizationId === getTenantId(req))
       .slice(0, limit);
     res.json({ success: true, total: audit.length, audit });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+memoryRouter.get('/infrastructure/collector-checkpoints', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json({ success: true, checkpoints: getCollectorCheckpoints(getTenantId(req)) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/collectors/run', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await runInfrastructureCollectors();
+    res.json({ success: true, ...result });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
