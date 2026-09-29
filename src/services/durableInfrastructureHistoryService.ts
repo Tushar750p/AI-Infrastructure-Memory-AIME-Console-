@@ -48,27 +48,64 @@ export async function flushDurableInfrastructureHistory(): Promise<{ events: num
   const snapshots = [...pendingSnapshots.values()];
   if (!events.length && !snapshots.length) return { events: 0, snapshots: 0 };
 
-  try {
-    const batch = db.batch();
-    for (const event of events) {
-      batch.set(db.collection('infrastructureEvents').doc(String(event.id)), {
+  // Firestore batches are limited to 500 writes. Keep headroom for future
+  // metadata writes and commit the queue in bounded chunks.
+  const MAX_BATCH_OPERATIONS = 450;
+  const writes = [
+    ...events.map((event) => ({
+      collection: 'infrastructureEvents',
+      id: String(event.id),
+      value: {
         ...event,
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
-    for (const snapshot of snapshots) {
-      batch.set(db.collection('timeMachineSnapshots').doc(String(snapshot.id)), {
+      }
+    })),
+    ...snapshots.map((snapshot) => ({
+      collection: 'timeMachineSnapshots',
+      id: String(snapshot.id),
+      value: {
         ...snapshot,
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      }
+    }))
+  ];
+
+  let committedEvents = 0;
+  let committedSnapshots = 0;
+
+  try {
+    for (let offset = 0; offset < writes.length; offset += MAX_BATCH_OPERATIONS) {
+      const chunk = writes.slice(offset, offset + MAX_BATCH_OPERATIONS);
+      const batch = db.batch();
+
+      for (const write of chunk) {
+        batch.set(
+          db.collection(write.collection).doc(write.id),
+          write.value,
+          { merge: true }
+        );
+      }
+
+      await batch.commit();
+
+      for (const write of chunk) {
+        if (write.collection === 'infrastructureEvents') {
+          pendingEvents.delete(write.id);
+          committedEvents++;
+        } else {
+          pendingSnapshots.delete(write.id);
+          committedSnapshots++;
+        }
+      }
     }
-    await batch.commit();
-    for (const event of events) pendingEvents.delete(event.id);
-    for (const snapshot of snapshots) pendingSnapshots.delete(snapshot.id);
-    return { events: events.length, snapshots: snapshots.length };
+
+    return { events: committedEvents, snapshots: committedSnapshots };
   } catch (error) {
-    console.warn('[Durable History] Flush failed; retaining queued records:', error instanceof Error ? error.message : String(error));
-    return { events: 0, snapshots: 0 };
+    console.warn(
+      '[Durable History] Flush failed; retaining uncommitted records:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return { events: committedEvents, snapshots: committedSnapshots };
   }
 }
 
