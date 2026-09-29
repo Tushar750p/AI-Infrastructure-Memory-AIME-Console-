@@ -25,10 +25,53 @@ import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphServic
 import { getResourceTimeline, getResourceStateAt } from '../services/timeMachineService.js';
 import { analyzeIncident } from '../services/incidentIntelligenceService.js';
 import { calculateFailureRisk } from '../services/failureRiskService.js';
+import { proposeRemediation, approveRemediation, listRemediations } from '../services/remediationService.js';
 
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.get('/infrastructure/remediations', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json({ success: true, remediations: listRemediations(getTenantId(req)) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/remediations', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { resourceId, actionType, description, reason, riskLevel, evidenceEventIds = [] } = req.body || {};
+    if (!resourceId || !actionType || !description || !reason || !riskLevel) {
+      return res.status(400).json({ success: false, error: 'resourceId, actionType, description, reason and riskLevel are required.' });
+    }
+
+    const remediation = proposeRemediation({
+      organizationId: getTenantId(req),
+      resourceId,
+      actionType,
+      description,
+      reason,
+      riskLevel,
+      proposedBy: req.user.id,
+      evidenceEventIds: Array.isArray(evidenceEventIds) ? evidenceEventIds : []
+    });
+
+    res.status(201).json({ success: true, remediation });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/remediations/:id/approve', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const remediation = approveRemediation(getTenantId(req), req.params.id, req.user.id);
+    if (!remediation) return res.status(404).json({ success: false, error: 'Remediation not found.' });
+    res.json({ success: true, remediation });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 memoryRouter.get('/infrastructure/risk', (req: AuthenticatedRequest, res: Response) => {
   try {
     const lookbackHours = Math.min(Math.max(parseInt(String(req.query.lookbackHours || '24'), 10) || 24, 1), 168);
