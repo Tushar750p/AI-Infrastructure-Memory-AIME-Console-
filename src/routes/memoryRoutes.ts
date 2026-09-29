@@ -30,6 +30,7 @@ import { executeApprovedRemediation } from '../services/remediationExecutor.js';
 import { executeDockerRemediation } from '../services/dockerRemediationAdapter.js';
 import { executeKubernetesRemediation } from '../services/kubernetesRemediationAdapter.js';
 import { executeAwsRemediation } from '../services/awsRemediationAdapter.js';
+import { executeDockerRollback } from '../services/dockerRollbackAdapter.js';
 import { getCollectorCheckpoints, getCollectorHealth, runInfrastructureCollectors } from '../services/infrastructureCollectorScheduler.js';
 
 export const memoryRouter = Router();
@@ -100,6 +101,15 @@ memoryRouter.post('/infrastructure/rollbacks/:id/approve', requirePermission('in
     res.json({ success: true, rollback });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/rollbacks/:id/execute/docker', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await executeDockerRollback(getTenantId(req), req.params.id);
+    res.json({ success: result.success, rollback: result });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
