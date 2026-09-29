@@ -14,6 +14,7 @@ import {
 import { getCollectionData } from '../db/firestoreDb.js';
 import { getTenantId, tenantRecords, findTenantRecord } from '../services/tenantAccess.js';
 import { listInfrastructureEvents, getCollectorStatus } from '../services/infrastructureEventService.js';
+import { ingestAwsCloudTrailEvents } from '../services/awsCloudTrailCollector.js';
 
 export const memoryRouter = Router();
 
@@ -22,6 +23,27 @@ memoryRouter.get('/infrastructure/events', (req: AuthenticatedRequest, res: Resp
   try {
     const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
     res.json({ events: listInfrastructureEvents(getTenantId(req), limit) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+memoryRouter.post('/infrastructure/collect/aws/cloudtrail', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const organizationId = getTenantId(req);
+    const minutes = Math.min(Math.max(parseInt(String(req.body?.minutes || '60'), 10) || 60, 1), 1440);
+    const result = await ingestAwsCloudTrailEvents(organizationId, {
+      maxResults: 50,
+      startTime: new Date(Date.now() - minutes * 60 * 1000),
+      endTime: new Date()
+    });
+    const status = result.source === 'live' && !result.reason ? 200 : 503;
+    res.status(status).json({
+      success: result.source === 'live' && !result.reason,
+      source: result.source,
+      ingested: result.ingested,
+      reason: result.reason || null
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
