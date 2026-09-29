@@ -63,6 +63,7 @@ function scoreEvent(event: InfrastructureEvent, incidentStart: number, resourceI
   return Math.min(0.99, score);
 }
 
+
 export async function analyzeIncidentDurable(
   organizationId: string,
   correlationId: string
