@@ -52,6 +52,10 @@ export function dockerRollbackSnapshotKey(org: string, hostId: string, container
   return `dockerRollbackSnapshot:${org}:${hostId}:${containerId}`;
 }
 
+function dockerRollbackTargetKey(org: string, hostId: string, containerId: string) {
+  return `dockerRollbackTarget:${org}:${hostId}:${containerId}`;
+}
+
 export async function captureDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
   const host = getCollectionData('dockerHosts', []).find((h: any) => h.organizationId === organizationId && h.id === hostId);
   if (!host) throw new Error('Tenant-authorized Docker host not found.');
@@ -84,6 +88,9 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
   snapshot.integrityHash = snapshotHash(snapshot);
 
   setCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), snapshot);
+  if (!getCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), null)) {
+    setCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), snapshot);
+  }
   return snapshot;
 }
 
@@ -96,10 +103,12 @@ export function preserveDockerRollbackCandidate(
 ) {
   verifyDockerRollbackSnapshot(snapshot);
   const key = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${eventId}`;
-  setCollectionData(key, { ...snapshot, candidateEventId: eventId, candidateCreatedAt: new Date().toISOString() });
+  const candidate = { ...snapshot, candidateEventId: eventId, candidateCreatedAt: new Date().toISOString() };
+  setCollectionData(key, candidate);
+  setCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), candidate);
   return key;
 }
 
 export function getDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
-  return getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
+  return getCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), null) || getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
 }
