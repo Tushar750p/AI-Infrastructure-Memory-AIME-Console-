@@ -10,6 +10,7 @@ services:
     environment:
       - NODE_ENV=production
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - APP_URL=${APP_URL}
     depends_on:
       - postgres
       - redis
@@ -22,10 +23,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://aime_user:aime_secure_password_2026@postgres:5432/aime_db
-      - REDIS_URL=redis://redis:6379/0
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - JWT_SECRET=aime_super_secret_jwt_key_2026_prod
+      - JWT_SECRET=${JWT_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
     depends_on:
       - postgres
       - redis
@@ -35,9 +38,9 @@ services:
     image: postgres:15-alpine
     container_name: aime_postgres
     environment:
-      POSTGRES_USER: aime_user
-      POSTGRES_PASSWORD: aime_secure_password_2026
-      POSTGRES_DB: aime_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
