@@ -94,6 +94,25 @@ export async function captureDockerRollbackSnapshot(organizationId: string, host
   return snapshot;
 }
 
+function pruneDockerRollbackCandidates(organizationId: string, hostId: string, containerId: string) {
+  const retention = Math.min(Math.max(Number(process.env.AIME_DOCKER_ROLLBACK_RETENTION || 50), 5), 500);
+  const candidates = getCollectionData('dockerRollbackCandidates', [])
+    .filter((candidate: any) =>
+      !(candidate.organizationId === organizationId && candidate.hostId === hostId && candidate.containerId === containerId)
+    );
+  const scoped = getCollectionData('dockerRollbackCandidates', [])
+    .filter((candidate: any) =>
+      candidate.organizationId === organizationId &&
+      candidate.hostId === hostId &&
+      candidate.containerId === containerId
+    )
+    .sort((a: any, b: any) =>
+      new Date(b.candidateCreatedAt || 0).getTime() - new Date(a.candidateCreatedAt || 0).getTime()
+    )
+    .slice(0, retention);
+  setCollectionData('dockerRollbackCandidates', [...scoped, ...candidates].slice(0, 50000));
+}
+
 export function preserveDockerRollbackCandidate(
   organizationId: string,
   hostId: string,
@@ -108,6 +127,7 @@ export function preserveDockerRollbackCandidate(
   const candidates = getCollectionData('dockerRollbackCandidates', []);
   candidates.unshift(candidate);
   setCollectionData('dockerRollbackCandidates', candidates.slice(0, 50000));
+  pruneDockerRollbackCandidates(organizationId, hostId, containerId);
   setCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), candidate);
   return key;
 }
