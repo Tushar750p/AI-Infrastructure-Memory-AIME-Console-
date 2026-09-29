@@ -245,23 +245,23 @@ memoryRouter.post('/infrastructure/collectors/run', requirePermission('infra:wri
   }
 });
 
-memoryRouter.get('/infrastructure/risk', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/risk', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const lookbackHours = Math.min(Math.max(parseInt(String(req.query.lookbackHours || '24'), 10) || 24, 1), 168);
     res.json({
       success: true,
       lookbackHours,
-      signals: calculateFailureRisk(getTenantId(req), lookbackHours)
+      signals: await calculateFailureRisk(getTenantId(req), lookbackHours)
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-memoryRouter.get('/infrastructure/incidents/:correlationId/intelligence', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.get('/infrastructure/incidents/:correlationId/intelligence', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const correlationId = decodeURIComponent(req.params.correlationId);
-    const result = analyzeIncident(getTenantId(req), correlationId);
+    const result = await analyzeIncident(getTenantId(req), correlationId);
     if (!result) {
       return res.status(404).json({ success: false, error: 'Incident correlation not found.' });
     }
