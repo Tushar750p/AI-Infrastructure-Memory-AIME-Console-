@@ -14,8 +14,13 @@ import {
 } from '../services/k8sService.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
 import { encryptSecret } from '../services/sshService.js';
+import { findTenantRecord, getTenantId, tenantRecords } from '../services/tenantAccess.js';
 
 export const k8sRouter = Router();
+
+function authorizedCluster(req: AuthenticatedRequest, id: string) {
+  return findTenantRecord(getCollectionData('k8sClusters', []), getTenantId(req), (c: any) => c.id === id);
+}
 
 // ==========================================
 // CLUSTER MANAGEMENT CRUD
@@ -57,6 +62,7 @@ k8sRouter.post('/kubernetes/clusters', requireAuth, async (req: AuthenticatedReq
     serviceAccountToken: serviceAccountToken ? encryptSecret(serviceAccountToken) : undefined,
     lastSync: now,
     createdBy: req.user.id,
+    organizationId: getTenantId(req),
     createdAt: now,
     updatedAt: now
   };
@@ -87,7 +93,7 @@ k8sRouter.post('/kubernetes/clusters', requireAuth, async (req: AuthenticatedReq
 k8sRouter.put('/kubernetes/clusters/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const clusters = getCollectionData('k8sClusters', []);
-  const cluster = clusters.find((c: any) => c.id === id);
+  const cluster = findTenantRecord(clusters, getTenantId(req), (c: any) => c.id === id);
 
   if (!cluster) {
     return res.status(404).json({ error: 'Kubernetes cluster not found.' });
@@ -111,13 +117,13 @@ k8sRouter.put('/kubernetes/clusters/:id', requireAuth, async (req: Authenticated
 k8sRouter.delete('/kubernetes/clusters/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   let clusters = getCollectionData('k8sClusters', []);
-  const exists = clusters.some((c: any) => c.id === id);
+  const exists = Boolean(authorizedCluster(req, id));
 
   if (!exists) {
     return res.status(404).json({ error: 'Kubernetes cluster not found.' });
   }
 
-  clusters = clusters.filter((c: any) => c.id !== id);
+  clusters = clusters.filter((c: any) => c.id !== id || c.organizationId !== getTenantId(req));
   setCollectionData('k8sClusters', clusters);
 
   res.json({ message: 'Kubernetes cluster removed.' });
