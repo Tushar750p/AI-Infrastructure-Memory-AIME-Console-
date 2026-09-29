@@ -11,6 +11,7 @@ import {
   ROLE_PERMISSIONS
 } from '../services/authService.js';
 import { getCollectionData, setCollectionData } from '../db/firestoreDb.js';
+import { consumeAuthRateLimit } from '../services/authRateLimitService.js';
 
 export const authRouter = Router();
 
@@ -131,6 +132,9 @@ export function requirePermission(permission: string) {
 
 // 1. REGISTER
 authRouter.post('/register', async (req: Request, res: Response) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const rate = await consumeAuthRateLimit({ key: `register:ip:${ip}`, limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
   try {
     await ensureSeedUsers();
     const { email, password, confirmPassword, fullName, organizationName } = req.body;
@@ -268,6 +272,11 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
 // 2. LOGIN
 authRouter.post('/login', async (req: Request, res: Response) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const emailKey = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const ipRate = await consumeAuthRateLimit({ key: `login:ip:${ip}`, limit: 30, windowMs: 15 * 60 * 1000 });
+  const accountRate = emailKey ? await consumeAuthRateLimit({ key: `login:account:${emailKey}`, limit: 10, windowMs: 15 * 60 * 1000 }) : { allowed: true };
+  if (!ipRate.allowed || !accountRate.allowed) return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   try {
     await ensureSeedUsers();
     const { email, password, mfaCode } = req.body;
