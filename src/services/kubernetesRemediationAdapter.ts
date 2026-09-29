@@ -1,6 +1,6 @@
 import * as k8s from '@kubernetes/client-node';
 import { getCollectionData } from '../db/firestoreDb.js';
-import { getRemediation } from './remediationService.js';
+import { getRemediation, transitionRemediation } from './remediationService.js';
 import { ALLOWED_REMEDIATION_ACTIONS } from './remediationExecutor.js';
 import { decryptSecret } from './sshService.js';
 
@@ -33,6 +33,7 @@ export async function executeKubernetesRemediation(
   const remediation = getRemediation(organizationId, remediationId);
   if (!remediation) throw new Error('Remediation not found.');
   if (remediation.status !== 'approved') throw new Error('Remediation must be approved.');
+  transitionRemediation(organizationId, remediationId, 'approved', 'executing');
   if (!ALLOWED_REMEDIATION_ACTIONS.includes(remediation.actionType as any)) {
     throw new Error('Action is not allowlisted.');
   }
@@ -87,18 +88,22 @@ export async function executeKubernetesRemediation(
         const ready = Number(updated.status?.readyReplicas ?? 0);
 
         if (available >= desired && ready >= desired) {
+          const verification = `Deployment ${namespace}/${deployment} reports ${ready}/${desired} ready replicas after restart.`;
+          transitionRemediation(organizationId, remediationId, 'executing', 'verified', { verification });
           return {
             success: true,
             actionType: remediation.actionType,
             resourceId: remediation.resourceId,
-            verification: `Deployment ${namespace}/${deployment} reports ${ready}/${desired} ready replicas after restart.`
+            verification
           };
         }
 
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
 
-      throw new Error(`Deployment ${namespace}/${deployment} did not become ready within 120 seconds.`);
+      const failureReason = `Deployment ${namespace}/${deployment} did not become ready within 120 seconds.`;
+      transitionRemediation(organizationId, remediationId, 'executing', 'failed', { failureReason });
+      throw new Error(failureReason);
     } catch (error) {
       if (error instanceof Error && error.message.includes('did not become ready')) {
         throw error;
@@ -106,5 +111,7 @@ export async function executeKubernetesRemediation(
     }
   }
 
-  throw new Error('Kubernetes deployment could not be restarted or verified on any tenant-authorized cluster.');
+  const failureReason = 'Kubernetes deployment could not be restarted or verified on any tenant-authorized cluster.';
+  transitionRemediation(organizationId, remediationId, 'executing', 'failed', { failureReason });
+  throw new Error(failureReason);
 }
