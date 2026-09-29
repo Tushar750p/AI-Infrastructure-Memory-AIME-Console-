@@ -125,3 +125,78 @@ export function listRemediations(organizationId: string): RemediationAction[] {
 export function getRemediation(organizationId: string, remediationId: string): RemediationAction | null {
   return listRemediations(organizationId).find(a => a.id === remediationId) || null;
 }
+
+export type RollbackStatus = 'proposed' | 'approved' | 'executing' | 'verified' | 'failed' | 'rejected';
+
+export interface RollbackAction {
+  id: string;
+  organizationId: string;
+  remediationId: string;
+  resourceId: string;
+  rollbackType: string;
+  description: string;
+  reason: string;
+  status: RollbackStatus;
+  proposedBy: string;
+  approvedBy?: string;
+  executionLock?: string;
+  createdAt: string;
+  approvedAt?: string;
+  executingAt?: string;
+  verifiedAt?: string;
+  failedAt?: string;
+  verification?: string;
+  failureReason?: string;
+  evidenceEventIds: string[];
+}
+
+function rollbackId() { return 'rollback-' + crypto.randomUUID(); }
+
+export function proposeRollback(input: Omit<RollbackAction, 'id' | 'status' | 'createdAt'>): RollbackAction {
+  const action: RollbackAction = { ...input, id: rollbackId(), status: 'proposed', createdAt: new Date().toISOString() };
+  const rollbacks = getCollectionData('rollbackActions', []);
+  rollbacks.unshift(action);
+  setCollectionData('rollbackActions', rollbacks.slice(0, 10000));
+  auditRollback(action, 'proposed', 'Rollback proposal created.');
+  return action;
+}
+
+export function getRollback(organizationId: string, rollbackIdValue: string): RollbackAction | null {
+  return getCollectionData('rollbackActions', []).find((r: RollbackAction) => r.organizationId === organizationId && r.id === rollbackIdValue) || null;
+}
+
+export function approveRollback(organizationId: string, rollbackIdValue: string, approvedBy: string): RollbackAction | null {
+  const rollbacks = getCollectionData('rollbackActions', []);
+  const index = rollbacks.findIndex((r: RollbackAction) => r.organizationId === organizationId && r.id === rollbackIdValue);
+  if (index < 0) return null;
+  if (rollbacks[index].status !== 'proposed') return rollbacks[index];
+  rollbacks[index] = { ...rollbacks[index], status: 'approved', approvedBy, approvedAt: new Date().toISOString() };
+  setCollectionData('rollbackActions', rollbacks);
+  auditRollback(rollbacks[index], 'approved', 'Rollback explicitly approved.', approvedBy);
+  return rollbacks[index];
+}
+
+export function transitionRollback(organizationId: string, rollbackIdValue: string, from: RollbackStatus, to: RollbackStatus, details?: { verification?: string; failureReason?: string }): RollbackAction | null {
+  const rollbacks = getCollectionData('rollbackActions', []);
+  const index = rollbacks.findIndex((r: RollbackAction) => r.organizationId === organizationId && r.id === rollbackIdValue);
+  if (index < 0) return null;
+  const action = rollbacks[index];
+  if (from === 'approved' && to === 'executing' && action.executionLock) throw new Error('Rollback execution is already locked.');
+  if (action.status !== from) throw new Error(`Invalid rollback transition: ${action.status} -> ${to}`);
+  const now = new Date().toISOString();
+  rollbacks[index] = { ...action, status: to,
+    ...(to === 'executing' ? { executionLock: crypto.randomUUID(), executingAt: now } : {}),
+    ...(to === 'verified' || to === 'failed' ? { executionLock: undefined } : {}),
+    ...(to === 'verified' ? { verifiedAt: now, verification: details?.verification } : {}),
+    ...(to === 'failed' ? { failedAt: now, failureReason: details?.failureReason } : {})
+  };
+  setCollectionData('rollbackActions', rollbacks);
+  auditRollback(rollbacks[index], to, details?.verification || details?.failureReason || `Rollback transitioned from ${from} to ${to}.`);
+  return rollbacks[index];
+}
+
+function auditRollback(action: RollbackAction, status: string, details: string, actor?: string) {
+  const audit = getCollectionData('remediationAudit', []);
+  audit.unshift({ id: `rollback-audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, organizationId: action.organizationId, remediationId: action.remediationId, resourceId: action.resourceId, actionType: `rollback:${action.rollbackType}`, status, details, actor: actor || action.approvedBy || action.proposedBy, createdAt: new Date().toISOString() });
+  setCollectionData('remediationAudit', audit.slice(0, 20000));
+}
