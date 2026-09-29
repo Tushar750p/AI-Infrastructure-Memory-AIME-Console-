@@ -39,6 +39,10 @@ const configuredOrigins = (process.env.AIME_ALLOWED_ORIGINS || process.env.APP_U
   .map(origin => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
+if (process.env.NODE_ENV === 'production' && configuredOrigins.length === 0) {
+  throw new Error('Production requires APP_URL or AIME_ALLOWED_ORIGINS for cookie CSRF protection.');
+}
+
 app.use('/api', (req, res, next) => {
   if (csrfSafeMethods.has(req.method)) return next();
 
