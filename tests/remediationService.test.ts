@@ -33,11 +33,12 @@ const verified = transitionRemediation(
   proposed.id,
   'executing',
   'verified',
-  { verification: 'Test verification passed.' }
+  { verification: 'Test verification passed.', verifiedResourceId: 'host-1:container-new' }
 );
 assert.equal(verified?.status, 'verified');
 assert.equal(verified?.executionLock, undefined);
 assert.equal(verified?.verification, 'Test verification passed.');
+assert.equal(verified?.verifiedResourceId, 'host-1:container-new');
 
 console.log('Remediation lifecycle tests passed.');
 
