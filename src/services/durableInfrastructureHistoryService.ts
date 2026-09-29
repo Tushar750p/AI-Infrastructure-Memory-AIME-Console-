@@ -169,3 +169,19 @@ export function loadRecentHistoryForRecovery(organizationId: string, limit = 100
     .slice(0, limit);
   return { events, snapshots };
 }
+
+export async function loadDurableEventsForWindow(
+  organizationId: string,
+  start: string,
+  end: string,
+  limit = 1000
+): Promise<InfrastructureEvent[]> {
+  const history = await loadDurableHistory(organizationId, limit);
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return [];
+  return history.events.filter((event) => {
+    const ts = new Date(event.timestamp).getTime();
+    return ts >= startMs && ts <= endMs;
+  });
+}
