@@ -105,7 +105,7 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
     try {
       current = await container.inspect();
     } catch (error) {
-      const snapshotName = String(snapshot.name || '').replace(/^\\//, '');
+      const snapshotName = String(snapshot.name || '').replace(/^\//, '');
       if (!snapshotName) throw error;
       container = docker.getContainer(snapshotName);
       current = await container.inspect();
