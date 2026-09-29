@@ -228,7 +228,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     sessions.push(newSession);
     setCollectionData('sessions', sessions);
 
-    const { accessToken, refreshToken } = generateTokens(newUser, sessionId);
+    const { accessToken, refreshToken } = generateTokens(newUser, sessionId, sessionId);
 
     // Save refresh token
     const refreshTokens = getCollectionData('refreshTokens', []);
@@ -237,7 +237,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       userId,
       token: refreshToken,
       createdAt: now,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      familyId: sessionId
     });
     setCollectionData('refreshTokens', refreshTokens);
 
@@ -366,7 +367,8 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       userId: user.id,
       token: refreshToken,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      familyId
     });
     setCollectionData('refreshTokens', refreshTokens);
 
@@ -444,19 +446,37 @@ authRouter.post('/refresh', (req: Request, res: Response) => {
   const refreshTokens = getCollectionData('refreshTokens', []);
   const storedRefresh = refreshTokens.find((r: any) =>
     r.userId === payload.userId &&
-    r.token === refreshToken &&
-    !r.revokedAt &&
-    new Date(r.expiresAt).getTime() > Date.now()
+    r.token === refreshToken
   );
   if (!storedRefresh) {
     return res.status(401).json({ error: 'Refresh token has been revoked or expired' });
+  }
+
+  if (storedRefresh.revokedAt) {
+    const familyId = storedRefresh.familyId || payload.familyId || payload.sessionId;
+    for (const tokenRecord of refreshTokens) {
+      if ((tokenRecord.familyId || tokenRecord.sessionId) === familyId && !tokenRecord.revokedAt) {
+        tokenRecord.revokedAt = new Date().toISOString();
+      }
+    }
+    const familySessions = sessions.filter((s: any) => s.id === payload.sessionId && s.active);
+    for (const familySession of familySessions) familySession.active = false;
+    setCollectionData('refreshTokens', refreshTokens);
+    setCollectionData('sessions', sessions);
+    logAuthAudit('REFRESH_TOKEN_REUSE', payload.userId, user?.email || 'unknown', payload.organizationId, req.ip || '127.0.0.1', 'Revoked refresh-token family after reuse detection');
+    return res.status(401).json({ error: 'Refresh token reuse detected. Session revoked; please sign in again.' });
+  }
+
+  if (new Date(storedRefresh.expiresAt).getTime() <= Date.now()) {
+    return res.status(401).json({ error: 'Refresh token has expired' });
   }
 
   if (!user) {
     return res.status(401).json({ error: 'User no longer exists' });
   }
 
-  const { accessToken: newAccess, refreshToken: newRefresh } = generateTokens(user, payload.sessionId);
+  const familyId = storedRefresh.familyId || payload.familyId || payload.sessionId;
+  const { accessToken: newAccess, refreshToken: newRefresh } = generateTokens(user, payload.sessionId, familyId);
 
   storedRefresh.revokedAt = new Date().toISOString();
   refreshTokens.push({
