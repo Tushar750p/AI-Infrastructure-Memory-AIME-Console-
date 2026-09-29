@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, AuthenticatedRequest } from './authRoutes.js';
+import { requireAuth, requirePermission, AuthenticatedRequest } from './authRoutes.js';
 import {
   listKubernetesClusters,
   getClusterNodes,
@@ -37,7 +37,7 @@ k8sRouter.get('/kubernetes/clusters', async (req: Request, res: Response) => {
 });
 
 // POST /api/kubernetes/clusters - Register new cluster
-k8sRouter.post('/kubernetes/clusters', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+k8sRouter.post('/kubernetes/clusters', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   const { name, provider, region, version, environment, kubeconfig, serviceAccountToken } = req.body;
 
   if (!name) {
@@ -90,7 +90,7 @@ k8sRouter.post('/kubernetes/clusters', requireAuth, async (req: AuthenticatedReq
 });
 
 // PUT /api/kubernetes/clusters/:id - Update cluster
-k8sRouter.put('/kubernetes/clusters/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+k8sRouter.put('/kubernetes/clusters/:id', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const clusters = getCollectionData('k8sClusters', []);
   const cluster = findTenantRecord(clusters, getTenantId(req), (c: any) => c.id === id);
@@ -114,7 +114,7 @@ k8sRouter.put('/kubernetes/clusters/:id', requireAuth, async (req: Authenticated
 });
 
 // DELETE /api/kubernetes/clusters/:id - Remove cluster
-k8sRouter.delete('/kubernetes/clusters/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+k8sRouter.delete('/kubernetes/clusters/:id', requirePermission('infra:delete'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   let clusters = getCollectionData('k8sClusters', []);
   const exists = Boolean(authorizedCluster(req, id));
@@ -199,7 +199,7 @@ k8sRouter.get('/kubernetes/logs/:pod', async (req: Request, res: Response) => {
 });
 
 // POST /api/kubernetes/restart/:deployment - Restart Deployment
-k8sRouter.post('/kubernetes/restart/:deployment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+k8sRouter.post('/kubernetes/restart/:deployment', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { deployment } = req.params;
   const namespace = req.body.namespace || 'default';
   try {
@@ -211,7 +211,7 @@ k8sRouter.post('/kubernetes/restart/:deployment', requireAuth, async (req: Authe
 });
 
 // POST /api/kubernetes/scale/:deployment - Scale Deployment
-k8sRouter.post('/kubernetes/scale/:deployment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+k8sRouter.post('/kubernetes/scale/:deployment', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { deployment } = req.params;
   const replicas = parseInt(req.body.replicas, 10);
   const namespace = req.body.namespace || 'default';
@@ -229,7 +229,7 @@ k8sRouter.post('/kubernetes/scale/:deployment', requireAuth, async (req: Authent
 });
 
 // POST /api/kubernetes/rollback/:deployment - Rollback Deployment
-k8sRouter.post('/kubernetes/rollback/:deployment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+k8sRouter.post('/kubernetes/rollback/:deployment', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   const { deployment } = req.params;
   const namespace = req.body.namespace || 'default';
   try {
