@@ -21,10 +21,35 @@ import { collectKubernetesEvents, collectKubernetesState } from '../services/kub
 import { collectDockerEvents, collectDockerState } from '../services/dockerEventCollector.js';
 import { collectLinuxEvents } from '../services/linuxEventCollector.js';
 import { syncCorrelatedEventsToMemory } from '../services/eventMemoryBridge.js';
+import { buildKnowledgeGraph, neighbors } from '../services/knowledgeGraphService.js';
 
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
+memoryRouter.get('/infrastructure/graph', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const graph = buildKnowledgeGraph(getTenantId(req));
+    res.json({ success: true, ...graph });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+memoryRouter.get('/infrastructure/graph/neighbors/:nodeId', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const depth = Math.min(Math.max(parseInt(String(req.query.depth || '1'), 10) || 1, 1), 5);
+    const nodeId = decodeURIComponent(req.params.nodeId);
+    res.json({
+      success: true,
+      nodeId,
+      depth,
+      nodes: neighbors(getTenantId(req), nodeId, depth)
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 memoryRouter.get('/infrastructure/events', (req: AuthenticatedRequest, res: Response) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
