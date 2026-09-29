@@ -110,8 +110,19 @@ assert.throws(
 
 delete process.env.AIME_DOCKER_ROLLBACK_RETENTION;
 
-const legacySecret = encryptSecret('legacy-test-secret');
-const legacyLikeSecret = legacySecret.replace(/^v1:/, '');
+function legacyEncrypt(plainText: string) {
+  const iv = require('node:crypto').randomBytes(12);
+  const key = require('node:crypto').scryptSync(
+    process.env.CREDENTIALS_ENCRYPTION_KEY || 'aime-dev-credentials-key',
+    'salt',
+    32
+  );
+  const cipher = require('node:crypto').createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+const legacySecret = legacyEncrypt('legacy-test-secret');
 const legacySnapshot = {
   ...unsigned,
   env: [`DB_PASSWORD=__AIME_ENCRYPTED__${legacyLikeSecret}`],
