@@ -75,27 +75,29 @@ memoryRouter.post('/infrastructure/remediations/:id/execute', requirePermission(
 
 memoryRouter.post('/infrastructure/rollbacks', requirePermission('infra:write'), (req: AuthenticatedRequest, res: Response) => {
   try {
+    const organizationId = getTenantId(req);
+    const remediationId = String(req.body?.remediationId || '');
+    const resourceId = String(req.body?.resourceId || '');
+    const rollbackType = String(req.body?.rollbackType || '');
+    if (!remediationId || !resourceId || !rollbackType) {
+      return res.status(400).json({ success: false, error: 'remediationId, resourceId and rollbackType are required.' });
+    }
     const rollback = proposeRollback({
-      organizationId: getTenantId(req),
-      remediationId: String(req.body?.remediationId || ''),
-      resourceId: String(req.body?.resourceId || ''),
-      rollbackType: String(req.body?.rollbackType || ''),
+      organizationId,
+      remediationId,
+      resourceId,
+      rollbackType,
       description: String(req.body?.description || ''),
       reason: String(req.body?.reason || ''),
-      status: 'proposed',
       proposedBy: req.user.id,
       evidenceEventIds: Array.isArray(req.body?.evidenceEventIds) ? req.body.evidenceEventIds : [],
       targetSnapshotId: req.body?.targetSnapshotId ? String(req.body.targetSnapshotId) : undefined
     });
-    if (!rollback.remediationId || !rollback.resourceId || !rollback.rollbackType) {
-      return res.status(400).json({ success: false, error: 'remediationId, resourceId and rollbackType are required.' });
-    }
     res.status(201).json({ success: true, rollback });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(400).json({ success: false, error: err.message });
   }
 });
-
 memoryRouter.post('/infrastructure/rollbacks/docker/snapshot', requirePermission('infra:write'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const organizationId = getTenantId(req);
