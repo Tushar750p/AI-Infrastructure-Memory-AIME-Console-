@@ -147,6 +147,35 @@ export function preserveDockerRollbackCandidate(
   return key;
 }
 
+function migrateSnapshotEnv(snapshot: any) {
+  if (!snapshot || !Array.isArray(snapshot.env)) return snapshot;
+  let migrated = false;
+  const env = snapshot.env.map((entry: string) => {
+    const marker = '=__AIME_ENCRYPTED__';
+    const index = entry.indexOf(marker);
+    if (index < 0) return entry;
+    const encrypted = entry.slice(index + marker.length);
+    if (encrypted.startsWith('v1:')) return entry;
+    const name = entry.slice(0, index);
+    const plaintext = decryptSecret(encrypted);
+    migrated = true;
+    return `${name}=__AIME_ENCRYPTED__${encryptSecret(plaintext)}`;
+  });
+  if (!migrated) return snapshot;
+  const migratedSnapshot = { ...snapshot, env, schemaVersion: Math.max(Number(snapshot.schemaVersion || 0), 3) };
+  migratedSnapshot.integrityHash = snapshotHash(migratedSnapshot);
+  return migratedSnapshot;
+}
+
+export function migrateLatestDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
+  const key = dockerRollbackSnapshotKey(organizationId, hostId, containerId);
+  const snapshot = getCollectionData(key, null);
+  if (!snapshot) return null;
+  const migrated = migrateSnapshotEnv(snapshot);
+  if (migrated !== snapshot) setCollectionData(key, migrated);
+  return migrated;
+}
+
 export function getLatestDockerRollbackSnapshot(organizationId: string, hostId: string, containerId: string) {
   return getCollectionData(dockerRollbackSnapshotKey(organizationId, hostId, containerId), null);
 }
