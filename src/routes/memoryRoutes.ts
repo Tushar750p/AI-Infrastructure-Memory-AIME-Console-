@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { AuthenticatedRequest } from './authRoutes.js';
+import { AuthenticatedRequest, requirePermission } from './authRoutes.js';
 import {
   initializeMemoryStore,
   storeMemoryItem,
@@ -33,7 +33,7 @@ import { executeKubernetesRemediation } from '../services/kubernetesRemediationA
 export const memoryRouter = Router();
 
 // Phase 2: canonical infrastructure event stream, scoped to the authenticated tenant.
-memoryRouter.post('/infrastructure/remediations/:id/execute/kubernetes', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/remediations/:id/execute/kubernetes', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await executeKubernetesRemediation(getTenantId(req), req.params.id);
     res.json({ success: result.success, execution: result });
@@ -42,7 +42,7 @@ memoryRouter.post('/infrastructure/remediations/:id/execute/kubernetes', async (
   }
 });
 
-memoryRouter.post('/infrastructure/remediations/:id/execute/docker', async (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/remediations/:id/execute/docker', requirePermission('infra:deploy'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await executeDockerRemediation(getTenantId(req), req.params.id);
     res.json({ success: result.success, execution: result });
@@ -51,7 +51,7 @@ memoryRouter.post('/infrastructure/remediations/:id/execute/docker', async (req:
   }
 });
 
-memoryRouter.post('/infrastructure/remediations/:id/execute', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/remediations/:id/execute', requirePermission('infra:deploy'), (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = executeApprovedRemediation(getTenantId(req), req.params.id);
     res.json({ success: result.success, execution: result });
@@ -68,7 +68,7 @@ memoryRouter.get('/infrastructure/remediations', (req: AuthenticatedRequest, res
   }
 });
 
-memoryRouter.post('/infrastructure/remediations', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/remediations', requirePermission('infra:write'), (req: AuthenticatedRequest, res: Response) => {
   try {
     const { resourceId, actionType, description, reason, riskLevel, evidenceEventIds = [] } = req.body || {};
     if (!resourceId || !actionType || !description || !reason || !riskLevel) {
@@ -92,11 +92,24 @@ memoryRouter.post('/infrastructure/remediations', (req: AuthenticatedRequest, re
   }
 });
 
-memoryRouter.post('/infrastructure/remediations/:id/approve', (req: AuthenticatedRequest, res: Response) => {
+memoryRouter.post('/infrastructure/remediations/:id/approve', requirePermission('infra:deploy'), (req: AuthenticatedRequest, res: Response) => {
   try {
     const remediation = approveRemediation(getTenantId(req), req.params.id, req.user.id);
     if (!remediation) return res.status(404).json({ success: false, error: 'Remediation not found.' });
     res.json({ success: true, remediation });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+memoryRouter.get('/infrastructure/remediation-audit', requirePermission('audit:read'), (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 500);
+    const audit = getCollectionData('remediationAudit', [])
+      .filter((entry: any) => entry.organizationId === getTenantId(req))
+      .slice(0, limit);
+    res.json({ success: true, total: audit.length, audit });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
