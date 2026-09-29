@@ -29,13 +29,20 @@ function checkpointKey(org: string, collector: string) {
 }
 
 function organizations(): string[] {
-  return [...new Set(
+  const ids: string[] = getCollectionData('organizations', [])
+    .map((o: any) => o.id)
+    .filter((id: unknown): id is string => typeof id === 'string' && Boolean(id));
+  return [...new Set(ids)];
+}
+
+/* legacy implementation removed */
+/* return [...new Set(
     getCollectionData('organizations', [])
       .map((o: any) => o.id)
       .filter(Boolean)
       .map(String)
   )];
-}
+}*/
 
 function getCheckpoint(org: string, collector: CollectorName): Checkpoint {
   return getCollectionData(checkpointKey(org, collector), {
