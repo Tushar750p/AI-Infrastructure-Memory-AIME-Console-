@@ -1,8 +1,7 @@
-import { getCollectionData } from '../db/firestoreDb.js';
 import { InfrastructureEvent } from '../types/infrastructureEvent.js';
-import { correlateInfrastructureEvents, CorrelatedEventGroup } from './eventIntelligenceService.js';
-import { getResourceTimeline } from './timeMachineService.js';
+import { correlateDurableInfrastructureEvents, CorrelatedEventGroup } from './eventIntelligenceService.js';
 import { buildKnowledgeGraph } from './knowledgeGraphService.js';
+import { loadDurableHistory } from './durableInfrastructureHistoryService.js';
 
 export interface IncidentEvidence {
   eventId: string;
@@ -46,16 +45,16 @@ function scoreEvent(event: InfrastructureEvent, incidentStart: number, resourceI
   return Math.min(0.99, score);
 }
 
-export function analyzeIncident(
+export async function analyzeIncident(
   organizationId: string,
   correlationId: string
-): IncidentIntelligence | null {
-  const groups = correlateInfrastructureEvents(organizationId, 60);
+): Promise<IncidentIntelligence | null> {
+  const groups = await correlateDurableInfrastructureEvents(organizationId, 60, 1000);
   const group: CorrelatedEventGroup | undefined = groups.find(g => g.correlationId === correlationId);
   if (!group) return null;
 
-  const events: InfrastructureEvent[] = getCollectionData('infrastructureEvents', [])
-    .filter((e: InfrastructureEvent) => e.organizationId === organizationId);
+  const history = await loadDurableHistory(organizationId, 1000);
+  const events = history.events;
 
   const start = new Date(group.firstSeen).getTime();
   const end = new Date(group.lastSeen).getTime();
