@@ -94,6 +94,7 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
   const docker = dockerClient(host);
   if (!docker) throw new Error('Docker host connection is unavailable.');
 
+  let executionStarted = false;
   try {
     await docker.ping();
     if (rollback.rollbackType === 'docker_container_config') {
@@ -115,6 +116,7 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
     }
 
     transitionRollback(organizationId, rollbackId, 'approved', 'executing');
+    executionStarted = true;
 
     if (rollback.rollbackType === 'docker_container_snapshot') {
       if (snapshot.running && !current.State?.Running) await container.start();
@@ -209,7 +211,9 @@ export async function executeDockerRollback(organizationId: string, rollbackId: 
     return { success: true, rollbackId, resourceId: `${hostId}:${verifiedContainerId}`, verification };
   } catch (error) {
     const failureReason = error instanceof Error ? error.message : String(error);
-    transitionRollback(organizationId, rollbackId, 'executing', 'failed', { failureReason });
+    if (executionStarted) {
+      transitionRollback(organizationId, rollbackId, 'executing', 'failed', { failureReason });
+    }
     throw error;
   }
 }
