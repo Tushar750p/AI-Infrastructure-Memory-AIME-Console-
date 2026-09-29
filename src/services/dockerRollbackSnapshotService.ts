@@ -105,6 +105,9 @@ export function preserveDockerRollbackCandidate(
   const key = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:${eventId}`;
   const candidate = { ...snapshot, candidateEventId: eventId, candidateCreatedAt: new Date().toISOString() };
   setCollectionData(key, candidate);
+  const candidates = getCollectionData('dockerRollbackCandidates', []);
+  candidates.unshift(candidate);
+  setCollectionData('dockerRollbackCandidates', candidates.slice(0, 50000));
   setCollectionData(dockerRollbackTargetKey(organizationId, hostId, containerId), candidate);
   return key;
 }
@@ -114,16 +117,15 @@ export function getLatestDockerRollbackSnapshot(organizationId: string, hostId: 
 }
 
 export function listDockerRollbackCandidates(organizationId: string, hostId: string, containerId: string, limit = 20) {
-  const prefix = `dockerRollbackCandidate:${organizationId}:${hostId}:${containerId}:`;
-  const candidates: any[] = [];
-  const store = getCollectionData('__allCollections__', null);
-  if (store && typeof store === 'object') {
-    for (const [key, value] of Object.entries(store as Record<string, any>)) {
-      if (key.startsWith(prefix) && value && typeof value === 'object') candidates.push(value);
-    }
-  }
-  return candidates
-    .sort((a, b) => new Date(b.candidateCreatedAt || 0).getTime() - new Date(a.candidateCreatedAt || 0).getTime())
+  return getCollectionData('dockerRollbackCandidates', [])
+    .filter((candidate: any) =>
+      candidate.organizationId === organizationId &&
+      candidate.hostId === hostId &&
+      candidate.containerId === containerId
+    )
+    .sort((a: any, b: any) =>
+      new Date(b.candidateCreatedAt || 0).getTime() - new Date(a.candidateCreatedAt || 0).getTime()
+    )
     .slice(0, Math.min(Math.max(limit, 1), 100));
 }
 
